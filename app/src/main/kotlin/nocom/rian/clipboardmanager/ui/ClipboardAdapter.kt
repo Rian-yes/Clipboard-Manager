@@ -103,68 +103,76 @@ class ClipboardAdapter(
             holder.bindState(getItem(position))
         }
     }
-
+    
     // =====================================================================
     // 3. Private Animation Helpers
     // =====================================================================
 
-    private fun animateExpansion(view: View, expand: Boolean) {
+    private fun animateExpansion(binding: ItemClipboardBinding, expand: Boolean) {
+        val view = binding.detailContainer
+        val arrow = binding.expandArrow
+
         (view.tag as? android.animation.ValueAnimator)?.cancel()
-    
+        arrow.animate().cancel()
+
         if (expand) {
             view.visibility = View.VISIBLE
             view.measure(
-                View.MeasureSpec.makeMeasureSpec((view.parent as View).width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(binding.root.width, View.MeasureSpec.AT_MOST),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
             )
             val targetHeight = view.measuredHeight
-            view.layoutParams.height = 0
-            view.requestLayout()
-    
-            android.animation.ValueAnimator.ofInt(0, targetHeight).apply {
-                duration = 280
+
+            android.animation.ValueAnimator.ofInt(view.height, targetHeight).apply {
+                duration = 250
                 interpolator = android.view.animation.DecelerateInterpolator()
-                addUpdateListener {
-                    view.layoutParams.height = it.animatedValue as Int
-                    view.requestLayout()
+                addUpdateListener { animator ->
+                    val value = animator.animatedValue as Int
+                    view.layoutParams = view.layoutParams.apply { height = value }
                 }
                 addListener(object : android.animation.AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: android.animation.Animator) {
-                        view.layoutParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
                         view.tag = null
                     }
                 })
                 view.tag = this
                 start()
             }
+
+            arrow.animate()
+                .rotation(180f)
+                .setDuration(250)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
+                .start()
+
         } else {
-            val initialHeight = view.measuredHeight
+            val initialHeight = view.height
+
             android.animation.ValueAnimator.ofInt(initialHeight, 0).apply {
-                duration = 220
+                duration = 250
                 interpolator = android.view.animation.AccelerateInterpolator()
-                addUpdateListener {
-                    view.layoutParams.height = it.animatedValue as Int
-                    view.requestLayout()
+                addUpdateListener { animator ->
+                    val value = animator.animatedValue as Int
+                    view.layoutParams = view.layoutParams.apply { height = value }
                 }
                 addListener(object : android.animation.AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: android.animation.Animator) {
-                        view.visibility = View.GONE
-                        view.layoutParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
+                        if (view.height == 0) {
+                            view.visibility = View.INVISIBLE
+                        }
                         view.tag = null
                     }
                 })
                 view.tag = this
                 start()
             }
+
+            arrow.animate()
+                .rotation(0f)
+                .setDuration(250)
+                .setInterpolator(android.view.animation.AccelerateInterpolator())
+                .start()
         }
-    }
-    
-    private fun animateArrow(arrow: View, expand: Boolean) {
-        arrow.animate()
-            .rotation(if (expand) 180f else 0f)
-            .setDuration(280)
-            .setInterpolator(android.view.animation.DecelerateInterpolator())
-            .start()
     }
 
     // =====================================================================
@@ -174,11 +182,6 @@ class ClipboardAdapter(
     inner class ClipboardViewHolder(private val binding: ItemClipboardBinding) :
         RecyclerView.ViewHolder(binding.root) {
     
-        private var currentItemId: Int = -1
-        private var isCurrentlyExpanded: Boolean? = null
-        
-        // --- High-Level UI Rendering Tasks ---
-
         fun bind(item: ClipboardItem) {
             val effectiveItem = run {
                 val ov = localStateOverrides[item.id]
@@ -211,7 +214,6 @@ class ClipboardAdapter(
         
             binding.apply {
         
-                // --- 1. Content Text / Graphics Display ---
                 if (isSensitiveHidden) {
                     clipImage.visibility = View.GONE
                     clipText.visibility  = View.VISIBLE
@@ -239,12 +241,10 @@ class ClipboardAdapter(
                     clipText.ellipsize   = if (shouldExpand) null else android.text.TextUtils.TruncateAt.END
                 }
         
-                // --- 2. Standard Metadata Row ---
                 val typeLabel = if (isImage) "Image" else item.appName ?: "Unknown"
                 metaText.text = "$typeLabel • ${item.time}"
                 metaText.setTextColor(colorOnSurfaceVar)
         
-                // --- 3. Optional Multi-Field Details Blocks ---
                 if (displayConfig.showAppName) {
                     appNameText.visibility = View.VISIBLE
                     appNameText.text       = "App: ${item.appName ?: "Unknown"}"
@@ -301,19 +301,40 @@ class ClipboardAdapter(
                     extraDetailsText.text       = extraText
                     extraDetailsText.setTextColor(colorOnSurfaceVar)
                 }
-        
+
+                // if (isSensitiveHidden && expandedIds.contains(item.id)) {
+                //     onExpandClick(item.id)
+                // }
+
                 // --- 4. Content Block Expansions ---
                 val canExpand = shouldExpand && !isSensitiveHidden
+
+                // Cancel any lingering animator tags left on recycled views before managing states
+                (detailContainer.tag as? android.animation.ValueAnimator)?.cancel()
+                detailContainer.tag = null
+
                 if (shouldAnimate) {
-                    animateExpansion(detailContainer, canExpand)
-                    animateArrow(expandArrow, canExpand)
+                    animateExpansion(binding, canExpand)
                 } else {
-                    detailContainer.visibility = if (canExpand) View.VISIBLE else View.GONE
-                    detailContainer.layoutParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
-                    expandArrow.rotation = if (canExpand) 180f else 0f
+                    // SYNCHRONIZED STATIC STATES:
+                    if (canExpand) {
+                        detailContainer.visibility = View.VISIBLE
+                        
+                        detailContainer.measure(
+                            View.MeasureSpec.makeMeasureSpec(root.width, View.MeasureSpec.AT_MOST),
+                            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                        )
+                        detailContainer.layoutParams.height = detailContainer.measuredHeight
+                        expandArrow.rotation = 180f
+                    } else {
+                        // If it's sensitive and hidden, ensure it collapses completely 
+                        // without throwing exceptions or executing feedback loops.
+                        detailContainer.visibility = View.GONE // Changed from INVISIBLE to GONE to save layout overhead
+                        detailContainer.layoutParams.height = 0 
+                        expandArrow.rotation = 0f
+                    }
                 }
-        
-                // --- 5. Selection Highlighting Structural Changes ---
+
                 root.isChecked = isSelected
                 root.setCardBackgroundColor(
                     if (isSelected) colorSelectionBg else android.graphics.Color.TRANSPARENT
@@ -321,7 +342,6 @@ class ClipboardAdapter(
                 root.strokeWidth = if (isSelected) 4 else 1
                 root.strokeColor = if (isSelected) colorSelectionStroke else colorOutlineVariant
         
-                // --- 6. Quick Action Status Toggles ---
                 if (effectiveItem.isPinned) {
                     pinIcon.setImageResource(R.drawable.baseline_push_pin)
                     pinIcon.setColorFilter(colorPinActive)
@@ -357,47 +377,93 @@ class ClipboardAdapter(
                         eyeIcon.setImageResource(R.drawable.ic_visibility_off)
                         eyeIcon.setColorFilter(colorOnSurface)
                     }
-                    eyeIcon.setOnClickListener { onRevealClick(item.id) }
+                    eyeIcon.setOnClickListener {
+                        val pos = bindingAdapterPosition
+                        if (pos != RecyclerView.NO_POSITION) onRevealClick(getItem(pos).id)
+                    }
                 } else {
                     eyeIcon.visibility = View.GONE
                 }
         
+                // ── DYNAMIC EXTRACTIONS FROM THE LIST TO AVOID CAPTURING STALE VARS ──
                 // --- 7. View Event Trigger Wire-ups ---
                 root.setOnClickListener {
-                    if (selectedIds.isNotEmpty()) onLongClick(item) else onExpandClick(item.id)
+                    if (selectedIds.isNotEmpty()) {
+                        onLongClick(item)
+                    } else {
+                        // If it's sensitive and currently hidden, clicking the card 
+                        // shouldn't fire an expansion/collapse toggle at all.
+                        if (isSensitiveHidden) {
+                            // Optional: You can choose to reveal the item here instead:
+                            // onRevealClick(item.id)
+                            return@setOnClickListener
+                        }
+                        onExpandClick(item.id)
+                    }
                 }
-                root.setOnLongClickListener { onLongClick(item); true }
-                quickCopy.setOnClickListener { onCopyClick(item) }
+
+                root.setOnLongClickListener { 
+                    val pos = bindingAdapterPosition
+                    if (pos != RecyclerView.NO_POSITION) onLongClick(getItem(pos))
+                    true 
+                }
+
+                quickCopy.setOnClickListener { 
+                    val pos = bindingAdapterPosition
+                    if (pos != RecyclerView.NO_POSITION) onCopyClick(getItem(pos))
+                }
         
                 pinIcon.setOnClickListener {
                     val pos = bindingAdapterPosition
                     if (pos == RecyclerView.NO_POSITION) return@setOnClickListener
-                    val current = localStateOverrides[item.id] ?: item
-                    localStateOverrides = localStateOverrides + (item.id to current.copy(isPinned = !current.isPinned))
-                    notifyItemChanged(pos)
-                    onPinClick(item)
+                    val freshItem = getItem(pos)
+                    val currentVisual = localStateOverrides[freshItem.id] ?: freshItem
+                    
+                    val updated = currentVisual.copy(isPinned = !currentVisual.isPinned)
+                    localStateOverrides = localStateOverrides + (freshItem.id to updated)
+                    bindState(freshItem) // instant UI modification update
+                    onPinClick(freshItem)
                 }
         
                 favoriteIcon.setOnClickListener {
                     val pos = bindingAdapterPosition
                     if (pos == RecyclerView.NO_POSITION) return@setOnClickListener
-                    val current = localStateOverrides[item.id] ?: item
-                    localStateOverrides = localStateOverrides + (item.id to current.copy(isFavorite = !current.isFavorite))
-                    notifyItemChanged(pos)
-                    onFavoriteClick(item)
+                    val freshItem = getItem(pos)
+                    val currentVisual = localStateOverrides[freshItem.id] ?: freshItem
+                    
+                    val updated = currentVisual.copy(isFavorite = !currentVisual.isFavorite)
+                    localStateOverrides = localStateOverrides + (freshItem.id to updated)
+                    bindState(freshItem)
+                    onFavoriteClick(freshItem)
                 }
         
-                btnDelete.setOnClickListener    { onDeleteClick(item) }
-                btnEdit.setOnClickListener      { onEditClick(item) }
-                btnEditLabel.setOnClickListener { onLabelEditClick(item) }
-        
-                chipSensitive.setOnClickListener {
+          chipSensitive.setOnClickListener {
+            val pos = bindingAdapterPosition
+            if (pos == RecyclerView.NO_POSITION) return@setOnClickListener
+            val current = localStateOverrides[item.id] ?: item
+            
+            // If turning sensitivity ON and it's currently expanded, clear the expansion state cleanly
+            if (!current.isSensitive && expandedIds.contains(item.id)) {
+                onExpandClick(item.id) 
+            }
+
+            localStateOverrides = localStateOverrides + (item.id to current.copy(isSensitive = !current.isSensitive))
+            notifyItemChanged(pos)
+            onSensitiveClick(item)
+        }
+
+
+                btnDelete.setOnClickListener { 
                     val pos = bindingAdapterPosition
-                    if (pos == RecyclerView.NO_POSITION) return@setOnClickListener
-                    val current = localStateOverrides[item.id] ?: item
-                    localStateOverrides = localStateOverrides + (item.id to current.copy(isSensitive = !current.isSensitive))
-                    notifyItemChanged(pos)
-                    onSensitiveClick(item)
+                    if (pos != RecyclerView.NO_POSITION) onDeleteClick(getItem(pos))
+                }
+                btnEdit.setOnClickListener { 
+                    val pos = bindingAdapterPosition
+                    if (pos != RecyclerView.NO_POSITION) onEditClick(getItem(pos))
+                }
+                btnEditLabel.setOnClickListener { 
+                    val pos = bindingAdapterPosition
+                    if (pos != RecyclerView.NO_POSITION) onLabelEditClick(getItem(pos))
                 }
             }
         }
@@ -453,8 +519,6 @@ class ClipboardAdapter(
                 binding.eyeIcon.visibility = View.GONE
             }
         }
-
-        // --- Low-Level View Helpers & Utility Methods ---
 
         private fun loadImageSafely(imageView: android.widget.ImageView, filePath: String) {
             try {
