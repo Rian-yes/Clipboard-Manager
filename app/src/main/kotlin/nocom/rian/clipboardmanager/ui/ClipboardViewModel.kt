@@ -3,6 +3,7 @@ package nocom.rian.clipboardmanager.ui
 import android.app.Application
 import androidx.lifecycle.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -48,6 +49,9 @@ class ClipboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     private var cachedClips: List<ClipboardItem> = emptyList()
 
+    // Tracks sequential execution per item ID to safely support sub-0.5s rapid clicks
+    private val dbWriteJobs = mutableMapOf<Int, Job>()
+
     // ── 1. INITIALIZATION & REACTIVE STREAMS ───────────────────────────────────
 
     init {
@@ -55,7 +59,6 @@ class ClipboardViewModel(application: Application) : AndroidViewModel(applicatio
         repository = ClipboardRepository(dao)
         allClips = repository.allClips.asLiveData()
     
-        // Inside init { } — the allClips cleanup collector
         viewModelScope.launch {
             repository.allClips.collect { dbClips ->
                 val overrides = _localOverrides.value
@@ -73,7 +76,6 @@ class ClipboardViewModel(application: Application) : AndroidViewModel(applicatio
             }
         }
     
-        // Applies local optimistic overrides on top of the DB-backed list
         val effectiveClips = combine(repository.allClips, _localOverrides) { clips, overrides ->
             if (overrides.isEmpty()) clips else clips.map { overrides[it.id] ?: it }
         }
@@ -145,23 +147,20 @@ class ClipboardViewModel(application: Application) : AndroidViewModel(applicatio
         }.asLiveData()
     }
 
+    // ── Helper for thread-confined sequential atomic DB updates ────────────────
+    private fun safelyExecuteDbWrite(itemId: Int, block: suspend () -> Unit) {
+        dbWriteJobs[itemId]?.cancel()
+        dbWriteJobs[itemId] = viewModelScope.launch(Dispatchers.IO) {
+            block()
+        }
+    }
+
     // ── 2. SEARCH & FILTER SETTERS ─────────────────────────────────────────────
 
-    fun setSearchQuery(query: String) {
-        _searchQuery.value = query
-    }
-
-    fun setFilter(filter: Filter) { 
-        _activeFilter.value = filter 
-    }
-
-    fun setSearchField(field: SearchField) { 
-        _searchField.value = field 
-    }
-
-    fun setSortOrder(order: SortOrder) { 
-        _sortOrder.value = order 
-    }
+    fun setSearchQuery(query: String) { _searchQuery.value = query }
+    fun setFilter(filter: Filter) { _activeFilter.value = filter }
+    fun setSearchField(field: SearchField) { _searchField.value = field }
+    fun setSortOrder(order: SortOrder) { _sortOrder.value = order }
 
     // ── 3. SELECTION & EXPANSION MANAGEMENT ────────────────────────────────────
 
@@ -187,34 +186,45 @@ class ClipboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     // ── 4. ITEM STATE TOGGLES (OPTIMISTIC) ─────────────────────────────────────
-
-    fun togglePin(item: ClipboardItem) {
-        val updated = item.copy(isPinned = !item.isPinned)
-        _localOverrides.value = _localOverrides.value + (item.id to updated)
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.update(updated)
-        }
-    }
-
     fun toggleFavorite(item: ClipboardItem) {
-        val updated = item.copy(isFavorite = !item.isFavorite)
+        val current = _localOverrides.value[item.id] ?: item
+        val updated = current.copy(isFavorite = !current.isFavorite)
         _localOverrides.value = _localOverrides.value + (item.id to updated)
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.toggleFavorite(item)
+
+        safelyExecuteDbWrite(item.id) {
+            repository.update(updated)   // was: repository.toggleFavorite(updated)
         }
     }
-    
+
     fun toggleSensitive(item: ClipboardItem) {
-        val updated = item.copy(isSensitive = !item.isSensitive)
+        val current = _localOverrides.value[item.id] ?: item
+        val updated = current.copy(isSensitive = !current.isSensitive)
         _localOverrides.value = _localOverrides.value + (item.id to updated)
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.toggleSensitive(item)
+
+        safelyExecuteDbWrite(item.id) {
+            repository.update(updated)   // was: repository.toggleSensitive(updated)
+        }
+    }
+    fun togglePin(item: ClipboardItem) {
+        val current = _localOverrides.value[item.id] ?: item
+        val updated = current.copy(isPinned = !current.isPinned)
+        _localOverrides.value = _localOverrides.value + (item.id to updated)
+        
+        safelyExecuteDbWrite(item.id) {
+            repository.update(updated)
         }
     }
 
     fun toggleRevealSensitive(itemId: Int) {
         val current = _revealedSensitiveIds.value
-        _revealedSensitiveIds.value = if (current.contains(itemId)) current - itemId else current + itemId
+        val willBeHidden = current.contains(itemId) // If true, it's about to be removed from revealed -> hidden
+        
+        _revealedSensitiveIds.value = if (willBeHidden) current - itemId else current + itemId
+        
+        // Clean up expansion states safely on state update thread if hiding the clip
+        if (willBeHidden) {
+            _expandedIds.value = _expandedIds.value - itemId
+        }
     }
 
     fun togglePinSelectedClips() = viewModelScope.launch {
