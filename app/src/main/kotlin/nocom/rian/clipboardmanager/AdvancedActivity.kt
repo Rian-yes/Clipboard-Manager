@@ -167,36 +167,36 @@ class AdvancedActivity : AppCompatActivity() {
 
                     // APPROACH: Pass style explicitly via R.style to guarantee standard M3 suggestion look safely
                     // 1. Wrap the context with the specific Material 3 Suggestion Chip style
-val themedContext = android.view.ContextThemeWrapper(
-    this@AdvancedActivity, 
-    com.google.android.material.R.style.Widget_Material3_Chip_Suggestion
-)
-
-// 2. Instantiate the Chip using the wrapped context
-val customChip = com.google.android.material.chip.Chip(themedContext).apply {
-    text = label
-    tag = "CUSTOM_PILL"
-    setEnsureMinTouchTargetSize(true)
-    
-    setOnLongClickListener {
-        AlertDialog.Builder(this@AdvancedActivity)
-            .setTitle("Delete Custom Pill")
-            .setMessage("Do you want to delete the \"$label\" shortcut?")
-            .setPositiveButton("Delete") { _, _ ->
-                val currentSet = prefs.getStringSet(CUSTOM_QUERIES_PREF_KEY, emptySet())?.toMutableSet() ?: mutableSetOf()
-                currentSet.remove(packedString)
-                prefs.edit().putStringSet(CUSTOM_QUERIES_PREF_KEY, currentSet).apply()
-                loadAndBindCustomChips()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-        true
-    }
-    
-    setOnClickListener {
-        sqlInput?.setText(query)
-    }
-}
+                    val themedContext = android.view.ContextThemeWrapper(
+                        this@AdvancedActivity, 
+                        com.google.android.material.R.style.Widget_Material3_Chip_Suggestion
+                    )
+                    
+                    // 2. Instantiate the Chip using the wrapped context
+                    val customChip = com.google.android.material.chip.Chip(themedContext).apply {
+                        text = label
+                        tag = "CUSTOM_PILL"
+                        setEnsureMinTouchTargetSize(true)
+                        
+                        setOnLongClickListener {
+                            AlertDialog.Builder(this@AdvancedActivity)
+                                .setTitle("Delete Custom Pill")
+                                .setMessage("Do you want to delete the \"$label\" shortcut?")
+                                .setPositiveButton("Delete") { _, _ ->
+                                    val currentSet = prefs.getStringSet(CUSTOM_QUERIES_PREF_KEY, emptySet())?.toMutableSet() ?: mutableSetOf()
+                                    currentSet.remove(packedString)
+                                    prefs.edit().putStringSet(CUSTOM_QUERIES_PREF_KEY, currentSet).apply()
+                                    loadAndBindCustomChips()
+                                }
+                                .setNegativeButton("Cancel", null)
+                                .show()
+                            true
+                        }
+                        
+                        setOnClickListener {
+                            sqlInput?.setText(query)
+                        }
+                    }
                     val targetIndex = chipGroup?.indexOfChild(chipAddCustom) ?: 0
                     chipGroup?.addView(customChip, targetIndex)
                 }
@@ -347,108 +347,176 @@ val customChip = com.google.android.material.chip.Chip(themedContext).apply {
     }
 
     private fun buildRuleCard(rule: AutomationRule): View {
-        val dp = resources.displayMetrics.density
-        val pad = (12 * dp).toInt()
+    val dp = resources.displayMetrics.density
+    val pad = (12 * dp).toInt()
 
-        val card = MaterialCardView(this).apply {
-            radius = 12 * dp
-            strokeWidth = 1
-            setStrokeColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_outlineVariant))
-            cardElevation = 0f
-            setCardBackgroundColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_surface))
+    val card = MaterialCardView(this).apply {
+        radius = 12 * dp
+        strokeWidth = 1
+        setStrokeColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_outlineVariant))
+        cardElevation = 0f
+        setCardBackgroundColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_surface))
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = (8 * dp).toInt() }
+    }
+
+    val inner = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(pad, pad, pad, (8 * dp).toInt())
+    }
+
+    // --- Row 1: Header (Title & Toggle Switch) ---
+    val row1 = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+    }
+    val nameText = TextView(this).apply {
+        text = rule.name.ifBlank { "Unnamed Rule" }
+        textSize = 14f
+        setTypeface(typeface, Typeface.BOLD)
+        setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_onSurface))
+        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+    }
+
+    // --- Collapsible Details Container ---
+    val collapsibleContainer = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        
+        // Initial state logic: If disabled, we initialize height at 0 and clip the bounds
+        if (!rule.enabled) {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = (8 * dp).toInt() }
+                0
+            )
+            visibility = View.INVISIBLE
         }
+    }
 
-        val inner = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, (8 * dp).toInt())
-        }
+    val enableSwitch = MaterialSwitch(this).apply {
+        isChecked = rule.enabled
+        setOnCheckedChangeListener { _, checked ->
+            
+            if (checked) {
+                // --- EXPAND ANIMATION ---
+                collapsibleContainer.visibility = View.VISIBLE
+                
+                // Measure how tall the contents want to be
+                collapsibleContainer.measure(
+                    View.MeasureSpec.makeMeasureSpec((card.width - (2 * pad)), View.MeasureSpec.AT_MOST),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                )
+                val targetHeight = collapsibleContainer.measuredHeight
 
-        val row1 = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        val nameText = TextView(this).apply {
-            text = rule.name.ifBlank { "Unnamed Rule" }
-            textSize = 14f
-            setTypeface(typeface, Typeface.BOLD)
-            setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_onSurface))
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        }
-        val enableSwitch = MaterialSwitch(this).apply {
-            isChecked = rule.enabled
-            setOnCheckedChangeListener { _, checked ->
-                val list = loadRules(prefs).toMutableList()
-                val idx = list.indexOfFirst { it.id == rule.id }
-                if (idx >= 0) { 
-                    list[idx] = list[idx].copy(enabled = checked)
-                    saveRules(prefs, list) 
+                android.animation.ValueAnimator.ofInt(0, targetHeight).apply {
+                    duration = 250
+                    interpolator = android.view.animation.DecelerateInterpolator()
+                    addUpdateListener { animator ->
+                        val value = animator.animatedValue as Int
+                        collapsibleContainer.layoutParams = collapsibleContainer.layoutParams.apply {
+                            height = value
+                        }
+                    }
+                    start()
+                }
+            } else {
+                // --- COLLAPSE ANIMATION ---
+                val initialHeight = collapsibleContainer.height
+
+                android.animation.ValueAnimator.ofInt(initialHeight, 0).apply {
+                    duration = 250
+                    interpolator = android.view.animation.AccelerateInterpolator()
+                    addUpdateListener { animator ->
+                        val value = animator.animatedValue as Int
+                        collapsibleContainer.layoutParams = collapsibleContainer.layoutParams.apply {
+                            height = value
+                        }
+                    }
+                    // Clean up visibility once the shrinking finishes so it stops drawing
+                    addListener(object : android.animation.AnimatorListenerAdapter() {
+                        override fun onAnimationEnd(animation: android.animation.Animator) {
+                            if (!isChecked) collapsibleContainer.visibility = View.INVISIBLE
+                        }
+                    })
+                    start()
                 }
             }
-        }
-        row1.addView(nameText)
-        row1.addView(enableSwitch)
 
-        val condText = TextView(this).apply {
-            text = buildConditionSummary(rule)
-            textSize = 12f
-            setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_onSurfaceVariant))
-            setPadding(0, (4 * dp).toInt(), 0, 0)
-        }
-
-        val actionText = TextView(this).apply {
-            text = buildActionSummary(rule)
-            textSize = 12f
-            setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_primary))
-            setPadding(0, (2 * dp).toInt(), 0, 0)
-        }
-
-        val btnRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, (6 * dp).toInt(), 0, 0)
-        }
-        val editBtn = Button(this).apply {
-            text = "Edit"
-            isAllCaps = false
-            background = null
-            textSize = 12f
-            setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_primary))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { marginEnd = (4 * dp).toInt() }
-            setOnClickListener { showRuleDialog(rule) }
-        }
-        val deleteBtn = Button(this).apply {
-            text = "Delete"
-            isAllCaps = false
-            background = null
-            textSize = 12f
-            setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_error))
-            setOnClickListener {
-                AlertDialog.Builder(this@AdvancedActivity)
-                    .setTitle("Delete Rule")
-                    .setMessage("Delete \"${rule.name}\"? This cannot be undone.")
-                    .setPositiveButton("Delete") { _, _ ->
-                        saveRules(prefs, loadRules(prefs).filter { it.id != rule.id })
-                        refreshRulesList()
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
+            // Persist state to Preferences
+            val list = loadRules(prefs).toMutableList()
+            val idx = list.indexOfFirst { it.id == rule.id }
+            if (idx >= 0) { 
+                list[idx] = list[idx].copy(enabled = checked)
+                saveRules(prefs, list) 
             }
         }
-        btnRow.addView(editBtn)
-        btnRow.addView(deleteBtn)
-
-        inner.addView(row1)
-        inner.addView(condText)
-        inner.addView(actionText)
-        inner.addView(btnRow)
-        card.addView(inner)
-        return card
     }
+    row1.addView(nameText)
+    row1.addView(enableSwitch)
+
+    // --- Rule Body Contents ---
+    val condText = TextView(this).apply {
+        text = buildConditionSummary(rule)
+        textSize = 12f
+        setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_onSurfaceVariant))
+        setPadding(0, (4 * dp).toInt(), 0, 0)
+    }
+
+    val actionText = TextView(this).apply {
+        text = buildActionSummary(rule)
+        textSize = 12f
+        setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_primary))
+        setPadding(0, (2 * dp).toInt(), 0, 0)
+    }
+
+    val btnRow = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        setPadding(0, (6 * dp).toInt(), 0, 0)
+    }
+    val editBtn = Button(this).apply {
+        text = "Edit"
+        isAllCaps = false
+        background = null
+        textSize = 12f
+        setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_primary))
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { marginEnd = (4 * dp).toInt() }
+        setOnClickListener { showRuleDialog(rule) }
+    }
+    val deleteBtn = Button(this).apply {
+        text = "Delete"
+        isAllCaps = false
+        background = null
+        textSize = 12f
+        setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_error))
+        setOnClickListener {
+            AlertDialog.Builder(this@AdvancedActivity)
+                .setTitle("Delete Rule")
+                .setMessage("Delete \"${rule.name}\"? This cannot be undone.")
+                .setPositiveButton("Delete") { _, _ ->
+                    saveRules(prefs, loadRules(prefs).filter { it.id != rule.id })
+                    refreshRulesList()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+    btnRow.addView(editBtn)
+    btnRow.addView(deleteBtn)
+
+    // Assemble components
+    collapsibleContainer.addView(condText)
+    collapsibleContainer.addView(actionText)
+    collapsibleContainer.addView(btnRow)
+
+    inner.addView(row1)
+    inner.addView(collapsibleContainer)
+    card.addView(inner)
+    
+    return card
+}
 
     private fun buildConditionSummary(rule: AutomationRule): String {
         val parts = mutableListOf<String>()
@@ -466,6 +534,7 @@ val customChip = com.google.android.material.chip.Chip(themedContext).apply {
         val parts = mutableListOf<String>()
         if (rule.actionLabel.isNotBlank()) parts.add("label → \"${rule.actionLabel}\"")
         when (rule.actionSensitive) { 1 -> parts.add("mark sensitive"); 0 -> parts.add("clear sensitive") }
+        when (rule.actionFavorite)  { 1 -> parts.add("mark favorite"); 0 -> parts.add("clear favorite") }
         when (rule.actionPinned)    { 1 -> parts.add("pin"); 0 -> parts.add("unpin") }
         return if (parts.isEmpty()) "THEN: (no actions)" else "THEN: ${parts.joinToString(" · ")}"
     }
