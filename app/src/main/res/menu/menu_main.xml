@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_permissions"
+        android:title="Permissions"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_settings"
+        android:title="Settings"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_clear_unpinned"
+        android:title="Clear Unpinned Clips"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_advanced"
+        android:title="Advanced"
+        app:showAsAction="never" />
+
+</menu>

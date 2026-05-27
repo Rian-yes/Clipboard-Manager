@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- ── Primary (Orange) ─────────────────────────────────────────── -->
+    <color name="md_theme_primary">#E8521A</color>
+    <color name="md_theme_onPrimary">#FFFFFF</color>
+    <color name="md_theme_primaryContainer">#FFDBCB</color>
+    <color name="md_theme_onPrimaryContainer">#3B0900</color>
+
+    <!-- ── Secondary ────────────────────────────────────────────────── -->
+    <color name="md_theme_secondary">#775949</color>
+    <color name="md_theme_onSecondary">#FFFFFF</color>
+    <color name="md_theme_secondaryContainer">#FFDBCB</color>
+    <color name="md_theme_onSecondaryContainer">#2B160B</color>
+
+    <!-- ── Tertiary ──────────────────────────────────────────────────── -->
+    <color name="md_theme_tertiary">#656032</color>
+    <color name="md_theme_onTertiary">#FFFFFF</color>
+    <color name="md_theme_tertiaryContainer">#EBE4AA</color>
+    <color name="md_theme_onTertiaryContainer">#1F1C00</color>
+
+    <!-- ── Error ─────────────────────────────────────────────────────── -->
+    <color name="md_theme_error">#B00000</color>
+    <color name="md_theme_onError">#FFFFFF</color>
+    <color name="md_theme_errorContainer">#FFDAD6</color>
+    <color name="md_theme_onErrorContainer">#410002</color>
+
+    <!-- ── Background / Surface ─────────────────────────────────────── -->
+    <color name="md_theme_background">#FFF8F6</color>
+    <color name="md_theme_onBackground">#231A17</color>
+    <color name="md_theme_surface">#FFF8F6</color>
+    <color name="md_theme_onSurface">#231A17</color>
+    <color name="md_theme_surfaceVariant">#F5DED5</color>
+    <color name="md_theme_onSurfaceVariant">#53433E</color>
+
+    <!-- ── Surface containers (Material 3 tonal surface) ────────────── -->
+    <color name="md_theme_surfaceContainerLowest">#FFFFFF</color>
+    <color name="md_theme_surfaceContainerLow">#FEF1EC</color>
+    <color name="md_theme_surfaceContainer">#F8EBE6</color>
+    <color name="md_theme_surfaceContainerHigh">#F2E4DE</color>
+    <color name="md_theme_surfaceContainerHighest">#ECDDD7</color>
+
+    <!-- ── Outline ────────────────────────────────────────────────────── -->
+    <color name="md_theme_outline">#85736D</color>
+    <color name="md_theme_outlineVariant">#D8C2BB</color>
+
+    <!-- ── Inverse ───────────────────────────────────────────────────── -->
+    <color name="md_theme_inverseSurface">#382E2B</color>
+    <color name="md_theme_inverseOnSurface">#FFEEE9</color>
+    <color name="md_theme_inversePrimary">#FFB599</color>
+
+    <!-- ── Scrim ─────────────────────────────────────────────────────── -->
+    <color name="md_theme_scrim">#000000</color>
+
+    <!-- ── Control ───────────────────────────────────────────────────── -->
+    <color name="md_theme_control_normal">#53433E</color> 
+
+    <!-- ── Adapter / Component colours ──────────────────────────────── -->
+    <!-- Gold used for pinned and favourite active states -->
+    <color name="color_pin_active">#F59E0B</color>
+    <!-- Selection overlay uses primary with ~20 % alpha -->
+    <color name="color_selection_background">#33E8521A</color>
+    <!-- Selection stroke is solid primary -->
+    <color name="color_selection_stroke">#FFE8521A</color>
+    <!-- Masked sensitive text: onSurface at 50 % -->
+    <color name="color_sensitive_masked">#80231A17</color>
+
+</resources>

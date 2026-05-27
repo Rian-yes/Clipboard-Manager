@@ -1,0 +1,2 @@
+{"id":"596195a2-cc3e-4501-9b4d-8ccf52f9dd31","sender":"USER","status":"SENT","text":"Hi","timestamp":1778608841081}
+{"id":"6eb1dd79-5a16-4e17-a0f1-9564ca5fe1a1","sender":"AGENT","status":"SENT","text":"An error occurred: 400 BAD_REQUEST. A client-side error occurred. This is often due to an invalid API key (e.g., with extra spaces or newlines) or a malformed request. Please check your configuration and credentials.","timestamp":1778608841082}

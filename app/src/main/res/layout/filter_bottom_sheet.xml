@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="24dp">
+
+    <!-- Drag handle -->
+    <View
+        android:layout_width="32dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="8dp"
+        android:background="@color/md_theme_outlineVariant" />
+
+    <!-- Fixed Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="24dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="16dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Filters"
+            android:textAppearance="?attr/textAppearanceTitleLarge"
+            android:textColor="@color/md_theme_onSurface" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnResetFilters"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Reset" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/md_theme_outlineVariant" />
+
+    <!-- Scrollable Content Area -->
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fadeScrollbars="false">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="16dp">
+
+            <!-- 1. SHOW (Moved to top as it's the most common filter action) -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="24dp"
+                android:paddingTop="20dp"
+                android:paddingBottom="8dp"
+                android:text="SHOW"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textColor="@color/md_theme_primary" />
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/sheetFilterChipGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="20dp"
+                app:singleSelection="true"
+                app:selectionRequired="true">
+
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipFilterAll" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="All" />
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipFilterPinned" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Pinned" />
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipFilterFavorites" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Favorites" />
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipFilterSensitive" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Sensitive" />
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipFilterImages" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Images" />
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipFilterLabeled" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Labeled" />
+
+            </com.google.android.material.chip.ChipGroup>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="16dp"
+                android:background="@color/md_theme_outlineVariant" />
+
+            <!-- 2. SORT BY -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="24dp"
+                android:paddingTop="20dp"
+                android:paddingBottom="8dp"
+                android:text="SORT BY"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textColor="@color/md_theme_primary" />
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/sheetSortChipGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="20dp"
+                app:singleSelection="true"
+                app:selectionRequired="true">
+
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipSortNewest" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Newest" />
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipSortOldest" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Oldest" />
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipSortLastUsed" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Last Used" />
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipSortAlpha" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="A → Z (Content)" />
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipSortAlphaApp" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="A → Z (App)" />
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipSortType" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Type" />
+            </com.google.android.material.chip.ChipGroup>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="16dp"
+                android:background="@color/md_theme_outlineVariant" />
+
+            <!-- 3. SEARCH IN (Cleaned up Core Options + Dropdown) -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="24dp"
+                android:paddingTop="20dp"
+                android:paddingBottom="8dp"
+                android:text="SEARCH SCOPE"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textColor="@color/md_theme_primary" />
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/sheetSearchFieldChipGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="20dp"
+                app:singleSelection="true"
+                app:selectionRequired="true">
+
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipSearchAll" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="All Fields" />
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipSearchContent" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Content" />
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipSearchApp" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="App Name" />
+                <com.google.android.material.chip.Chip android:id="@+id/sheetChipSearchLabel" style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Label" />
+            </com.google.android.material.chip.ChipGroup>
+
+            <!-- Advanced / Technical Fields Dropdown Menu -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="24dp"
+                android:layout_marginTop="12dp"
+                android:hint="Advanced Metadata Fields">
+
+                <AutoCompleteTextView
+                    android:id="@+id/dropdownAdvancedSearch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="none"
+                    android:text="Select advanced field..."
+                    android:textAppearance="?attr/textAppearanceBodyMedium"/>
+
+            </com.google.android.material.textfield.TextInputLayout>
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+    <!-- Fixed Footer -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnApplyFilters"
+        style="@style/Widget.Material3.Button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginTop="8dp"
+        android:text="Done" />
+
+</LinearLayout>
