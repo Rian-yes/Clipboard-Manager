@@ -258,6 +258,10 @@ class ClipboardViewModel(application: Application) : AndroidViewModel(applicatio
         repository.updateLabel(item.id, label)
     }
     
+    fun restoreClip(item: ClipboardItem) = viewModelScope.launch(Dispatchers.IO) {
+    repository.insert(item.copy(id = 0))
+}
+    
     fun updateClipById(
         itemId: Int,
         newClip: String?,
