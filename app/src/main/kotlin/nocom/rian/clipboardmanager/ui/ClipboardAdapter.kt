@@ -242,8 +242,9 @@ class ClipboardAdapter(
                 }
         
                 val typeLabel = if (isImage) "Image" else item.appName ?: "Unknown"
-                metaText.text = "$typeLabel • ${item.time}"
-                metaText.setTextColor(colorOnSurfaceVar)
+        metaText.text = "$typeLabel • ${getRelativeTime(item.timestamp, item.date)}"
+        metaText.setTextColor(colorOnSurfaceVar)
+
         
                 if (displayConfig.showAppName) {
                     appNameText.visibility = View.VISIBLE
@@ -294,13 +295,25 @@ class ClipboardAdapter(
                     }
                 }.trimEnd()
         
-                if (extraText.isBlank()) {
-                    extraDetailsText.visibility = View.GONE
-                } else {
-                    extraDetailsText.visibility = View.VISIBLE
-                    extraDetailsText.text       = extraText
-                    extraDetailsText.setTextColor(colorOnSurfaceVar)
-                }
+if (extraText.isBlank()) {
+    extraDetailsText.visibility = View.GONE
+} else {
+    extraDetailsText.visibility = View.VISIBLE
+    extraDetailsText.text       = extraText
+    extraDetailsText.setTextColor(colorOnSurfaceVar)
+}
+
+// Word / character count — text clips only
+if (!isImage && !isSensitiveHidden && item.clip != null) {
+    val charCount = item.clip.length
+    val wordCount = item.clip.trim()
+        .split(Regex("\\s+"))
+        .count { it.isNotEmpty() }
+    binding.wordCharCount.text = "$charCount chars · $wordCount words"
+    binding.wordCharCount.visibility = View.VISIBLE
+} else {
+    binding.wordCharCount.visibility = View.GONE
+}
 
                 // if (isSensitiveHidden && expandedIds.contains(item.id)) {
                 //     onExpandClick(item.id)
@@ -589,4 +602,20 @@ class ClipboardAdapter(
             return if (contentUnchanged) "STATE_CHANGE" else null
         }
     }
+    
+    // =====================================================================
+// 6. Private Time Formatting Helpers
+// =====================================================================
+
+private fun getRelativeTime(timestamp: Long, fallbackDate: String): String {
+    val diff = System.currentTimeMillis() - timestamp
+    return when {
+        diff < 60_000L          -> "Just now"
+        diff < 3_600_000L       -> "${diff / 60_000L}m ago"
+        diff < 86_400_000L      -> "${diff / 3_600_000L}h ago"
+        diff < 7 * 86_400_000L  -> "${diff / 86_400_000L}d ago"
+        diff < 30 * 86_400_000L -> "${diff / (7 * 86_400_000L)}w ago"
+        else                    -> fallbackDate
+    }
+}
 }
