@@ -1,5 +1,5 @@
 package nocom.rian.clipboardmanager
-
+ 
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -29,19 +29,19 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.Any
-
+ 
 private data class AppEntry(
     val displayLabel: String,
     val packageName: String,
     val userId: Int
 )
-
+ 
 class SettingsActivity : AppCompatActivity() {
-
+ 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var prefs: SharedPreferences
     private var prefetchedApps: List<AppEntry>? = null
-
+ 
     private val prefChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
         if (key == KEY_MONITORING_ENABLED) {
             val newValue = sharedPreferences.getBoolean(KEY_MONITORING_ENABLED, true)
@@ -53,7 +53,7 @@ class SettingsActivity : AppCompatActivity() {
                     binding.switchMonitoring.isChecked = newValue
                 }
             }
-
+ 
             // 2. Request tile update (keeps things synced if triggered from activity)
             try {
                 TileService.requestListeningState(
@@ -67,7 +67,7 @@ class SettingsActivity : AppCompatActivity() {
     }
     
     // ── SAF launchers ─────────────────────────────────────────────────────────
-
+ 
     private val exportLauncher = registerForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
     ) { uri: Uri? ->
@@ -79,7 +79,7 @@ class SettingsActivity : AppCompatActivity() {
     ) { uri: Uri? ->
         if (uri != null) performImport(uri)
     }
-
+ 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -106,7 +106,7 @@ class SettingsActivity : AppCompatActivity() {
             prefetchedApps = queryAppsAcrossUsers(includeSystemApps = false)
         }
     }
-
+ 
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true
@@ -134,7 +134,7 @@ class SettingsActivity : AppCompatActivity() {
     }
     
     // ── UI Initialization & Preference Loading ────────────────────────────────
-
+ 
     private fun loadCurrentValues() {
         val days = prefs.getInt(KEY_AUTO_DELETE_DAYS, 0)
         binding.sliderAutoDelete.value = days.toFloat()
@@ -173,7 +173,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.switchLogPrevWindow.isChecked  = prefs.getBoolean(KEY_LOG_FIELD_PREV_WINDOW,   true)
         binding.switchLogPrevActivity.isChecked= prefs.getBoolean(KEY_LOG_FIELD_PREV_ACTIVITY, true)
     }
-
+ 
     private fun updateMonitoringStatusText(enabled: Boolean) {
         binding.tvMonitoringStatus.text = if (enabled)
             "Active — capturing clipboard changes"
@@ -182,7 +182,7 @@ class SettingsActivity : AppCompatActivity() {
     }
     
     // ── Interaction Listeners (Sliders & Configuration Switches) ──────────────
-
+ 
     private fun setupSliderListeners() {
         binding.switchMonitoring.setOnCheckedChangeListener { buttonView, isChecked ->
             // 1. Prevent Android's view state restoration from triggering this programmatically
@@ -204,19 +204,19 @@ class SettingsActivity : AppCompatActivity() {
                 stopService(intent)
             }
         }
-
+ 
         binding.sliderAutoDelete.addOnChangeListener { _, value, _ ->
             val days = value.toInt()
             prefs.edit().putInt(KEY_AUTO_DELETE_DAYS, days).apply()
             binding.tvAutoDeleteValue.text = formatDays(days)
         }
-
+ 
         binding.sliderClipCap.addOnChangeListener { _, value, _ ->
             val cap = value.toInt()
             prefs.edit().putInt(KEY_CLIP_CAP, cap).apply()
             binding.tvClipCapValue.text = formatCap(cap)
         }
-
+ 
         binding.switchManualEntry.setOnCheckedChangeListener { _, isChecked ->
             prefs.edit().putBoolean(KEY_SHOW_MANUAL_ENTRY, isChecked).apply()
         }
@@ -285,9 +285,9 @@ class SettingsActivity : AppCompatActivity() {
             prefs.edit().putBoolean(KEY_LOG_FIELD_PREV_ACTIVITY, checked).apply()
         }
     }
-
+ 
     // ── Expandable UI Cards ───────────────────────────────────────────────────
-
+ 
     private fun setupExpandableCards() {
         setupExpandable(binding.headerAutoDelete,    binding.contentAutoDelete,    binding.arrowAutoDelete)
         setupExpandable(binding.headerClipCap,       binding.contentClipCap,       binding.arrowClipCap)
@@ -309,9 +309,9 @@ class SettingsActivity : AppCompatActivity() {
                 .start()
         }
     }
-
+ 
     // ── Multi-User Android Package Resolution ─────────────────────────────────
-
+ 
     private fun queryAppsAcrossUsers(includeSystemApps: Boolean = false): List<AppEntry> {
         val userManager = getSystemService(Context.USER_SERVICE) as UserManager
         val launcherApps = getSystemService(Context.LAUNCHER_APPS_SERVICE) as android.content.pm.LauncherApps
@@ -372,7 +372,7 @@ class SettingsActivity : AppCompatActivity() {
     
         return appMap.values.sortedBy { it.displayLabel.lowercase() }
     }
-
+ 
     private fun getUserLabel(userId: Int): String {
         val userManager = getSystemService(android.os.UserManager::class.java)
         
@@ -413,9 +413,9 @@ class SettingsActivity : AppCompatActivity() {
             "User $userId"
         }
     }
-
+ 
     // ── App Picker Engine (Shared Dialog Building) ────────────────────────────
-
+ 
     private fun showAppPickerDialogInternal(
         dialogTitle: String,
         loadSelected: () -> Set<String>,
@@ -543,9 +543,9 @@ class SettingsActivity : AppCompatActivity() {
                 .show()
         }
     }
-
+ 
     // ── Sensitive Apps Feature Layer ──────────────────────────────────────────
-
+ 
     private fun setupSensitiveApps() {
         updateSensitiveAppsCount()
         binding.btnManageSensitiveApps.setOnClickListener {
@@ -561,7 +561,7 @@ class SettingsActivity : AppCompatActivity() {
             onClear   = { saveSensitivePackages(emptySet()); updateSensitiveAppsCount() }
         )
     }
-
+ 
     private fun updateSensitiveAppsCount() {
         val sensitive = loadSensitivePackages()
         binding.tvSensitiveAppsCount.text = if (sensitive.isEmpty())
@@ -584,7 +584,7 @@ class SettingsActivity : AppCompatActivity() {
         val json = org.json.JSONArray(packages.toList()).toString()
         prefs.edit().putString(KEY_SENSITIVE_PACKAGES, json).apply()
     }
-
+ 
     // ── Excluded Apps Feature Layer ───────────────────────────────────────────
     
     private fun setupExcludedApps() {
@@ -593,7 +593,7 @@ class SettingsActivity : AppCompatActivity() {
             showAppPickerDialog()
         }
     }
-
+ 
     private fun showAppPickerDialog() {
         showAppPickerDialogInternal(
             dialogTitle = "Exclude Apps",
@@ -625,9 +625,9 @@ class SettingsActivity : AppCompatActivity() {
         val json = org.json.JSONArray(packages.toList()).toString()
         prefs.edit().putString(KEY_EXCLUDED_PACKAGES, json).apply()
     }
-
+ 
     // ── Backup, Export, & Import Subsystem ────────────────────────────────────
-
+ 
     private fun setupBackupButtons() {
         binding.btnExport.setOnClickListener {
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
@@ -648,7 +648,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         refreshDatabaseSizeInfo()
     }
-
+ 
     private fun performExport(uri: Uri) {
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
@@ -657,8 +657,13 @@ class SettingsActivity : AppCompatActivity() {
                         .clipboardDao()
                         .getAllClipsOnce()
     
+                    // Load automation rules JSON string from prefs
+                    val rulesJson = prefs.getString(
+                        nocom.rian.clipboardmanager.db.PREFS_KEY_AUTOMATION_RULES, null
+                    )
+    
                     contentResolver.openOutputStream(uri)?.use { stream ->
-                        BackupManager.exportZip(clips, stream)
+                        BackupManager.exportZip(clips, stream, rulesJson)
                     } ?: Result.failure(Exception("Could not open output stream"))
     
                 } catch (e: Exception) {
@@ -684,7 +689,7 @@ class SettingsActivity : AppCompatActivity() {
             )
         }
     }
-
+    
     private fun performImport(uri: Uri) {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Import Clips")
@@ -693,24 +698,46 @@ class SettingsActivity : AppCompatActivity() {
             .setNegativeButton("Cancel", null)
             .show()
     }
-
+    
     private fun doImport(uri: Uri) {
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
                 try {
-                    val imageDir = File(
-                        getExternalFilesDir(null), "clipboard_images"
-                    )
+                    val imageDir = File(getExternalFilesDir(null), "clipboard_images")
     
-                    val clips = contentResolver.openInputStream(uri)?.use { stream ->
+                    val backupResult = contentResolver.openInputStream(uri)?.use { stream ->
                         BackupManager.importZip(stream, imageDir)
                     } ?: Result.failure(Exception("Could not open file"))
     
-                    clips.map { list ->
+                    backupResult.map { br ->
                         val dao = AppDatabase.getDatabase(applicationContext).clipboardDao()
                         val repo = ClipboardRepository(dao)
-                        list.sortedBy { it.timestamp }.forEach { repo.insert(it) }
-                        list.size
+                        br.clips.sortedBy { it.timestamp }.forEach { repo.insert(it) }
+    
+                        // Merge imported automation rules safely
+                        if (!br.rulesJson.isNullOrBlank()) {
+                            val existingRules = nocom.rian.clipboardmanager.db.loadRules(prefs).toMutableList()
+                            
+                            val importedRules: List<nocom.rian.clipboardmanager.db.AutomationRule> = try {
+                                val type = nocom.rian.clipboardmanager.db.AutomationRuleListTypeToken().type
+                                com.google.gson.Gson().fromJson(br.rulesJson, type) ?: emptyList()
+                            } catch (e: Exception) {
+                                android.util.Log.e("SettingsActivity", "Failed to parse imported rules JSON", e)
+                                emptyList()
+                            }
+    
+                            // Merge by checking existing IDs to prevent duplicates
+                            val mergedIds = existingRules.map { it.id }.toSet()
+                            val newRules = importedRules.filter { it.id !in mergedIds }
+                            
+                            // Only save if there are actually new rules to add
+                            if (newRules.isNotEmpty()) {
+                                nocom.rian.clipboardmanager.db.saveRules(prefs, existingRules + newRules)
+                                android.util.Log.d("SettingsActivity", "Merged ${newRules.size} new automation rule(s) from backup")
+                            }
+                        }
+    
+                        br.clips.size
                     }
                 } catch (e: Exception) {
                     Result.failure(e)
@@ -735,9 +762,9 @@ class SettingsActivity : AppCompatActivity() {
             )
         }
     }
-
+ 
     // ── Data Destruction (Wipe & Cleanup) ─────────────────────────────────────
-
+ 
     private fun performWipe() {
         lifecycleScope.launch {
             withContext(Dispatchers.IO) {
@@ -758,29 +785,29 @@ class SettingsActivity : AppCompatActivity() {
             refreshDatabaseSizeInfo()
         }
     }
-
+ 
     // ── Storage Analytics & Information Helpers ───────────────────────────────
-
+ 
     private fun refreshDatabaseSizeInfo() {
         lifecycleScope.launch(Dispatchers.IO) {
             fun dirSize(dir: java.io.File): Long =
                 dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-
+ 
             val internalDataDir = filesDir.parentFile  
             val internalBytes = if (internalDataDir?.exists() == true) dirSize(internalDataDir) else 0L
-
+ 
             val imageDir = java.io.File(getExternalFilesDir(null), "clipboard_images")
             val imageBytes = if (imageDir.exists()) dirSize(imageDir) else 0L
-
+ 
             val externalBase = getExternalFilesDir(null)
             val otherExternalBytes = externalBase
                 ?.walkTopDown()
                 ?.filter { it.isFile && !it.absolutePath.startsWith(imageDir.absolutePath) }
                 ?.sumOf { it.length() } ?: 0L
-
+ 
             val textDbBytes = internalBytes + otherExternalBytes
             val totalBytes  = textDbBytes + imageBytes
-
+ 
             withContext(Dispatchers.Main) {
                 binding.tvDatabaseSize.text = buildString {
                     append("Storage used: ${formatFileSize(totalBytes)}")
@@ -790,7 +817,7 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
     }
-
+ 
     private fun formatFileSize(bytes: Long): String {
         return when {
             bytes >= 1_048_576L -> "%.1f MB".format(bytes / 1_048_576.0)
@@ -798,12 +825,12 @@ class SettingsActivity : AppCompatActivity() {
             else                -> "$bytes B"
         }
     }
-
+ 
     private fun formatDays(days: Int) = if (days == 0) "Disabled" else "$days days"
     private fun formatCap(cap: Int)  = if (cap  == 0) "Unlimited" else "$cap clips"
-
+ 
     // ── Companion Object ──────────────────────────────────────────────────────
-
+ 
     companion object {
         const val PREFS_NAME             = "clipboard_settings"
         const val KEY_AUTO_DELETE_DAYS   = "auto_delete_days"
