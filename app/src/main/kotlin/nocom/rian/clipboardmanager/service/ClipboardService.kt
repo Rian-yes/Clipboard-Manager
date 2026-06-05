@@ -73,8 +73,9 @@ class ClipboardService : Service() {
 
     // region Companion Object
     companion object {
-        @Volatile var isRunning = false
-    }
+    @Volatile var isRunning = false
+    const val ACTION_STOP_MONITORING = "nocom.rian.clipboardmanager.STOP_MONITORING"
+}
 
     // region Asynchronous Callbacks & Broadcast Receivers
     private val prefChangeListener =
@@ -163,41 +164,46 @@ class ClipboardService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        updateNotification()
-    
-        if (clipboardService == null && Shizuku.pingBinder()) {
-            setupShizukuServices()
-        }
-        
-        try {
-            TileService.requestListeningState(
-                this,
-                ComponentName(this, ClipboardTileService::class.java)
-            )
-        } catch (e: Exception) {
-            android.util.Log.e("ClipboardService", "Failed to update tile on startup", e)
-        }
-    
-        // Run auto-delete once on service start so stale clips are cleaned immediately
-        serviceScope.launch {
-            val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
-            val days = prefs.getInt(SettingsActivity.KEY_AUTO_DELETE_DAYS, 0)
-            if (days > 0) {
-                val cutoff = System.currentTimeMillis() - (days * 24L * 60 * 60 * 1000)
-                val db = AppDatabase.getDatabase(applicationContext)
-                val repository = ClipboardRepository(db.clipboardDao())
-                
-                // Use the updated method here as well!
-                repository.deleteOlderThanWithImages(
-                    cutoffMs = cutoff,
-                    onEachDeleted = { item -> deleteImageFileIfNeeded(item) },
-                    database = db
-                )
-                android.util.Log.d("ClipboardService", "Auto-delete on start: safely removed clips and images older than $days days")
-            }
-        }
-        return START_STICKY
+    // Handle stop action from notification button
+    if (intent?.action == ACTION_STOP_MONITORING) {
+        getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(SettingsActivity.KEY_MONITORING_ENABLED, false).commit()
+        stopSelf()
+        return START_NOT_STICKY
     }
+
+    updateNotification()
+
+    if (clipboardService == null && Shizuku.pingBinder()) {
+        setupShizukuServices()
+    }
+    
+    try {
+        TileService.requestListeningState(
+            this,
+            ComponentName(this, ClipboardTileService::class.java)
+        )
+    } catch (e: Exception) {
+        android.util.Log.e("ClipboardService", "Failed to update tile on startup", e)
+    }
+
+    serviceScope.launch {
+        val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
+        val days = prefs.getInt(SettingsActivity.KEY_AUTO_DELETE_DAYS, 0)
+        if (days > 0) {
+            val cutoff = System.currentTimeMillis() - (days * 24L * 60 * 60 * 1000)
+            val db = AppDatabase.getDatabase(applicationContext)
+            val repository = ClipboardRepository(db.clipboardDao())
+            repository.deleteOlderThanWithImages(
+                cutoffMs = cutoff,
+                onEachDeleted = { item -> deleteImageFileIfNeeded(item) },
+                database = db
+            )
+            android.util.Log.d("ClipboardService", "Auto-delete on start: safely removed clips and images older than $days days")
+        }
+    }
+    return START_STICKY
+}
 
     override fun onBind(intent: Intent?): IBinder? = null
     
@@ -688,30 +694,39 @@ class ClipboardService : Service() {
     }
 
     private fun createNotification(clipCount: Int = 0): Notification {
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent, PendingIntent.FLAG_IMMUTABLE
-        )
-        val contentTitle = when {
-            !isMonitoringActive -> "Monitoring Stopped"
-            else -> "Monitoring Clipboard"
-        }
-        val contentText = when {
-            !isMonitoringActive -> "⚠ Shizuku disconnected"
-            clipCount == 0 -> "Monitoring system clipboard..."
-            else -> "$clipCount clip${if (clipCount == 1) "" else "s"} saved"
-        }
-    
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(contentTitle)
-            .setContentText(contentText)
-            .setSmallIcon(R.drawable.ic_clipboard)
-            .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setOngoing(true)
-            .setShowWhen(false)
-            .build()
+    val intent = Intent(this, MainActivity::class.java)
+    val pendingIntent = PendingIntent.getActivity(
+        this, 0, intent, PendingIntent.FLAG_IMMUTABLE
+    )
+
+    val stopIntent = Intent(this, ClipboardService::class.java).apply {
+        action = ACTION_STOP_MONITORING
     }
+    val stopPendingIntent = PendingIntent.getService(
+        this, 1, stopIntent, PendingIntent.FLAG_IMMUTABLE
+    )
+
+    val contentTitle = when {
+        !isMonitoringActive -> "Monitoring Stopped"
+        else -> "Monitoring Clipboard"
+    }
+    val contentText = when {
+        !isMonitoringActive -> "⚠ Shizuku disconnected"
+        clipCount == 0 -> "Monitoring system clipboard..."
+        else -> "$clipCount clip${if (clipCount == 1) "" else "s"} saved"
+    }
+
+    return NotificationCompat.Builder(this, CHANNEL_ID)
+        .setContentTitle(contentTitle)
+        .setContentText(contentText)
+        .setSmallIcon(R.drawable.ic_clipboard)
+        .setContentIntent(pendingIntent)
+        .setPriority(NotificationCompat.PRIORITY_LOW)
+        .setOngoing(true)
+        .setShowWhen(false)
+        .addAction(android.R.drawable.ic_delete, "Turn Off", stopPendingIntent)
+        .build()
+}
     
     private fun updateNotification() {
         notificationUpdateJob?.cancel()
