@@ -7,13 +7,13 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import nocom.rian.clipboardmanager.databinding.ActivityShizukuBinding
+import nocom.rian.clipboardmanager.databinding.ActivityPermissionBinding
 import nocom.rian.clipboardmanager.service.ClipboardService
 import rikka.shizuku.Shizuku
 
-class ShizukuActivity : AppCompatActivity() {
+class PermissionActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityShizukuBinding
+    private lateinit var binding: ActivityPermissionBinding
     private val SHIZUKU_CODE = 102
 
     // =========================================================================
@@ -75,7 +75,7 @@ class ShizukuActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityShizukuBinding.inflate(layoutInflater)
+        binding = ActivityPermissionBinding.inflate(layoutInflater)
         setContentView(binding.root)
     
         setSupportActionBar(binding.shizukuToolbar)
