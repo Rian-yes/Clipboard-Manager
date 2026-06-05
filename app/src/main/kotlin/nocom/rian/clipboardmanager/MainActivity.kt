@@ -52,6 +52,7 @@ class MainActivity : AppCompatActivity() {
         requestNotificationPermissionThenStart()
         setupBackPressHandler()
         setupRecyclerView()
+        setupSwipeToDelete()     
         setupClickListeners()
         observeViewModel()
         updateFilterIndicator()
@@ -75,7 +76,7 @@ class MainActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_permissions -> {
-                startActivity(Intent(this, ShizukuActivity::class.java))
+                startActivity(Intent(this, PermissionActivity::class.java))
                 true
             }
             R.id.action_settings -> {
@@ -182,6 +183,133 @@ class MainActivity : AppCompatActivity() {
             }
         )
     }
+
+private fun setupSwipeToDelete() {
+    val deleteIcon = androidx.core.content.ContextCompat.getDrawable(
+        this, android.R.drawable.ic_menu_delete
+    )!!.mutate()
+    androidx.core.graphics.drawable.DrawableCompat.setTint(
+        deleteIcon,
+        androidx.core.content.ContextCompat.getColor(this, R.color.md_theme_onError)
+    )
+    
+    // Use GradientDrawable instead of ColorDrawable to support rounded corners
+    val background = android.graphics.drawable.GradientDrawable().apply {
+        shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+        setColor(androidx.core.content.ContextCompat.getColor(this@MainActivity, R.color.md_theme_error))
+    }
+
+    val swipeCallback = object : androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
+        0,
+        androidx.recyclerview.widget.ItemTouchHelper.LEFT or
+        androidx.recyclerview.widget.ItemTouchHelper.RIGHT
+    ) {
+        override fun onMove(
+            recyclerView: RecyclerView,
+            viewHolder: RecyclerView.ViewHolder,
+            target: RecyclerView.ViewHolder
+        ): Boolean = false
+
+        override fun getSwipeDirs(
+            recyclerView: RecyclerView,
+            viewHolder: RecyclerView.ViewHolder
+        ): Int = if (viewModel.isSelectionMode.value) 0
+                 else super.getSwipeDirs(recyclerView, viewHolder)
+
+        override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+            val position = viewHolder.bindingAdapterPosition
+            if (position == RecyclerView.NO_POSITION) return
+            val item = clipboardAdapter.currentList.getOrNull(position) ?: return
+            val isImage = item.mimeType?.startsWith("image/") == true
+
+            viewModel.delete(item)
+
+            val snackbar = Snackbar.make(binding.root, "Clip deleted", Snackbar.LENGTH_LONG)
+            if (!isImage) {
+                snackbar.setAction("Undo") { viewModel.restoreClip(item) }
+            }
+            snackbar.show()
+        }
+
+        override fun onChildDraw(
+            c: android.graphics.Canvas,
+            recyclerView: RecyclerView,
+            viewHolder: RecyclerView.ViewHolder,
+            dX: Float,
+            dY: Float,
+            actionState: Int,
+            isCurrentlyActive: Boolean
+        ) {
+            val itemView = viewHolder.itemView
+            
+            // Extract display density to perfectly map dp dimensions from item_clipboard.xml
+            val density = recyclerView.context.resources.displayMetrics.density
+            val marginHorizontal = (12 * density).toInt()
+            val marginVertical = (6 * density).toInt()
+            val cornerRadius = 16 * density
+            val cardPadding = (16 * density).toInt()
+
+            // Synchronize background curves with the MaterialCardView corner radius
+            background.cornerRadius = cornerRadius
+
+            // Center the delete icon perfectly within the inner card height profile
+            val cardHeight = itemView.height - (2 * marginVertical)
+            val iconTop = itemView.top + marginVertical + (cardHeight - deleteIcon.intrinsicHeight) / 2
+            val iconBottom = iconTop + deleteIcon.intrinsicHeight
+
+            when {
+                dX > 0 -> { // Swiping Right
+                    val backgroundRight = (itemView.left + marginHorizontal + dX.toInt())
+                        .coerceAtMost(itemView.right - marginHorizontal)
+                    
+                    background.setBounds(
+                        itemView.left + marginHorizontal,
+                        itemView.top + marginVertical,
+                        backgroundRight,
+                        itemView.bottom - marginVertical
+                    )
+                    
+                    // Align icon nicely with the internal layout padding boundary
+                    val iconLeft = itemView.left + marginHorizontal + cardPadding
+                    val iconRight = iconLeft + deleteIcon.intrinsicWidth
+                    deleteIcon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
+                }
+                dX < 0 -> { // Swiping Left
+                    val backgroundLeft = (itemView.right - marginHorizontal + dX.toInt())
+                        .coerceAtLeast(itemView.left + marginHorizontal)
+                        
+                    background.setBounds(
+                        backgroundLeft,
+                        itemView.top + marginVertical,
+                        itemView.right - marginHorizontal,
+                        itemView.bottom - marginVertical
+                    )
+                    
+                    val iconRight = itemView.right - marginHorizontal - cardPadding
+                    val iconLeft = iconRight - deleteIcon.intrinsicWidth
+                    deleteIcon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
+                }
+                else -> {
+                    background.setBounds(0, 0, 0, 0)
+                }
+            }
+
+            // Draw the shaped delete background color
+            background.draw(c)
+            
+            // Only draw the trash bin icon if the card has been swiped open far enough to prevent clipping
+            if (Math.abs(dX) > (cardPadding + deleteIcon.intrinsicWidth)) {
+                deleteIcon.draw(c)
+            }
+
+            super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
+        }
+    }
+
+    androidx.recyclerview.widget.ItemTouchHelper(swipeCallback)
+        .attachToRecyclerView(binding.clipboardRecycler)
+}
+
 
     // =========================================================================
     // 3. LiveData & State Observers
@@ -461,7 +589,7 @@ class MainActivity : AppCompatActivity() {
                 "Shizuku is not connected — clipboard monitoring is inactive",
                 Snackbar.LENGTH_INDEFINITE
             ).setAction("Fix") {
-                startActivity(Intent(this, ShizukuActivity::class.java))
+                startActivity(Intent(this, PermissionActivity::class.java))
             }
             shizukuSnackbar?.show()
         } else {
