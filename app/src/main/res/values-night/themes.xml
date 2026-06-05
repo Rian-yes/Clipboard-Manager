@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- All color references resolve to values-night/colors.xml automatically. -->
-    <style name="Theme.ClipboardManager" parent="Theme.Material3.DayNight.NoActionBar">
+    <style
+            name="Theme.ClipboardManager"
+            parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/md_theme_primary</item>
         <item name="colorOnPrimary">@color/md_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/md_theme_primaryContainer</item>
@@ -35,5 +37,8 @@
         <item name="colorOnSurfaceInverse">@color/md_theme_inverseOnSurface</item>
         <item name="colorPrimaryInverse">@color/md_theme_inversePrimary</item>
         <item name="scrimBackground">@color/md_theme_scrim</item>
+        <item name="android:statusBarColor">@color/md_theme_surface</item>
+        <!-- False = light icons for dark backgrounds -->
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

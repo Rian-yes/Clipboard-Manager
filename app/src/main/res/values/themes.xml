@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.ClipboardManager" parent="Theme.Material3.DayNight.NoActionBar">
+    <style
+            name="Theme.ClipboardManager"
+            parent="Theme.Material3.DayNight.NoActionBar">
 
         <!-- Primary brand colour -->
         <item name="colorPrimary">@color/md_theme_primary</item>
@@ -54,6 +56,10 @@
         <!-- Scrim -->
         <item name="scrimBackground">@color/md_theme_scrim</item>
 
+        <!-- Status bar colour matches your surface so icons are visible -->
+        <item name="android:statusBarColor">@color/md_theme_surface</item>
+        <!-- Dark icons on the light status bar -->
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
 </resources>
