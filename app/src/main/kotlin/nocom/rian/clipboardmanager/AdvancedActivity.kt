@@ -57,7 +57,7 @@ class AdvancedActivity : AppCompatActivity() {
 
         // Bind TabLayout and ViewPager2 tabs together
         TabLayoutMediator(binding.advancedTabs, binding.advancedViewPager) { tab, position ->
-            tab.text = if (position == 0) "SQL Console" else "Automation Rules"
+            tab.text = if (position == 0) "Automation Rules" else "SQL Console"
         }.attach()
     }
 
@@ -77,19 +77,19 @@ class AdvancedActivity : AppCompatActivity() {
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
             val inflater = LayoutInflater.from(parent.context)
             return if (viewType == 0) {
-                val view = inflater.inflate(R.layout.layout_advanced_sql, parent, false)
-                sqlView = view
-                SqlViewHolder(view)
-            } else {
                 val view = inflater.inflate(R.layout.layout_advanced_rules, parent, false)
                 rulesView = view
                 RulesViewHolder(view)
+            } else {
+                val view = inflater.inflate(R.layout.layout_advanced_sql, parent, false)
+                sqlView = view
+                SqlViewHolder(view)
             }
         }
 
         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-            if (position == 0) (holder as SqlViewHolder).bind()
-            else (holder as RulesViewHolder).bind()
+            if (position == 0) (holder as RulesViewHolder).bind()
+            else (holder as SqlViewHolder).bind()
         }
     }
     
