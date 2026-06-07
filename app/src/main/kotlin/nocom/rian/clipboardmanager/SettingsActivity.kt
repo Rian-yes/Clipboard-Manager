@@ -29,6 +29,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.Any
+import android.content.pm.PackageManager
+import rikka.shizuku.Shizuku
+
  
 private data class AppEntry(
     val displayLabel: String,
@@ -120,12 +123,12 @@ class SettingsActivity : AppCompatActivity() {
     
     override fun onResume() {
         super.onResume()
-        // Register listener when the activity comes to the foreground
         prefs.registerOnSharedPreferenceChangeListener(prefChangeListener)
         
-        // Refresh UI state in case it changed while the activity was paused
-        binding.switchMonitoring.isChecked = prefs.getBoolean(KEY_MONITORING_ENABLED, true)
+        // Refresh UI state dynamically in case Shizuku status changed
+        checkAndApplyMonitoringStatus()
     }
+
     
     override fun onDestroy() {
         super.onDestroy()
@@ -144,9 +147,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.sliderClipCap.value = cap.toFloat()
         binding.tvClipCapValue.text = formatCap(cap)
     
-        val monitoringEnabled = prefs.getBoolean(KEY_MONITORING_ENABLED, true)
-        binding.switchMonitoring.isChecked = monitoringEnabled
-        updateMonitoringStatusText(monitoringEnabled)
+        checkAndApplyMonitoringStatus()
     
         binding.switchManualEntry.isChecked = prefs.getBoolean(KEY_SHOW_MANUAL_ENTRY, false)
         binding.switchSyncSensitive.isChecked = prefs.getBoolean(KEY_SYNC_SENSITIVE_FROM_CLIPBOARD, false)
@@ -173,17 +174,48 @@ class SettingsActivity : AppCompatActivity() {
         binding.switchLogPrevWindow.isChecked  = prefs.getBoolean(KEY_LOG_FIELD_PREV_WINDOW,   true)
         binding.switchLogPrevActivity.isChecked= prefs.getBoolean(KEY_LOG_FIELD_PREV_ACTIVITY, true)
     }
- 
-    private fun updateMonitoringStatusText(enabled: Boolean) {
-        binding.tvMonitoringStatus.text = if (enabled)
-            "Active — capturing clipboard changes"
-        else
-            "Paused — service is stopped"
+    
+    private fun checkAndApplyMonitoringStatus() {
+        val isShizukuAlive = try {
+            Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        } catch (e: Exception) { false }
+
+        val prefEnabled = prefs.getBoolean(KEY_MONITORING_ENABLED, true)
+        
+        // 1. Always set the visual switch to the user's actual saved preference.
+        // (Because we use '!buttonView.isPressed' in the listener, this programmatic 
+        // change won't accidentally trigger a service restart).
+        binding.switchMonitoring.isChecked = prefEnabled
+
+        if (!isShizukuAlive) {
+            // 2. Lock the switch so it can't be interacted with directly
+            binding.switchMonitoring.isEnabled = false
+            
+            binding.iconMonitoringWarning.visibility = View.VISIBLE
+            binding.tvMonitoringStatus.text = "⚠ Shizuku disconnected or permission denied. Tap to fix."
+            binding.tvMonitoringStatus.setTextColor(getColor(R.color.md_theme_error))
+        } else {
+            // 3. Restore full functionality once Shizuku is back
+            binding.switchMonitoring.isEnabled = true
+            binding.iconMonitoringWarning.visibility = View.GONE
+            
+            // Restore normal text color
+            val typedValue = android.util.TypedValue()
+            theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurfaceVariant, typedValue, true)
+            binding.tvMonitoringStatus.setTextColor(typedValue.data)
+            
+            if (prefEnabled && nocom.rian.clipboardmanager.service.ClipboardService.isRunning) {
+                binding.tvMonitoringStatus.text = "Active — capturing clipboard changes"
+            } else {
+                binding.tvMonitoringStatus.text = "Paused — service is stopped"
+            }
+        }
     }
+
     
     // ── Interaction Listeners (Sliders & Configuration Switches) ──────────────
  
-    private fun setupSliderListeners() {
+        private fun setupSliderListeners() {
         binding.switchMonitoring.setOnCheckedChangeListener { buttonView, isChecked ->
             // 1. Prevent Android's view state restoration from triggering this programmatically
             if (!buttonView.isPressed) return@setOnCheckedChangeListener
@@ -191,7 +223,7 @@ class SettingsActivity : AppCompatActivity() {
             // 2. Use .commit() to write to disk instantly before the app can be killed
             prefs.edit().putBoolean(KEY_MONITORING_ENABLED, isChecked).commit()
             
-            updateMonitoringStatusText(isChecked)
+            checkAndApplyMonitoringStatus() // Updated line
             
             val intent = Intent(this, nocom.rian.clipboardmanager.service.ClipboardService::class.java)
             if (isChecked) {
@@ -204,6 +236,20 @@ class SettingsActivity : AppCompatActivity() {
                 stopService(intent)
             }
         }
+
+        // Add this to make the whole row clickable to fix Shizuku issues
+        binding.monitoringContainer.setOnClickListener {
+            val isShizukuAlive = try {
+                Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            } catch (e: Exception) { false }
+            
+            if (!isShizukuAlive) {
+                startActivity(Intent(this, PermissionActivity::class.java))
+            } else {
+                binding.switchMonitoring.toggle()
+            }
+        }
+
  
         binding.sliderAutoDelete.addOnChangeListener { _, value, _ ->
             val days = value.toInt()

@@ -40,11 +40,15 @@
                 app:strokeColor="?attr/colorOutlineVariant">
 
                 <LinearLayout
+                    android:id="@+id/monitoringContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:padding="16dp"
-                    android:gravity="center_vertical">
+                    android:gravity="center_vertical"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -71,11 +75,20 @@
 
                     </LinearLayout>
 
+                    <ImageView
+                        android:id="@+id/iconMonitoringWarning"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_marginEnd="12dp"
+                        android:src="@android:drawable/ic_dialog_alert"
+                        android:visibility="gone"
+                        app:tint="@color/md_theme_error" />
+
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/switchMonitoring"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
+                        android:layout_marginStart="4dp"
                         android:checked="true" />
 
                 </LinearLayout>
