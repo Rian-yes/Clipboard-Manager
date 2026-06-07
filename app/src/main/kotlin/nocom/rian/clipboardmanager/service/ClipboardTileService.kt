@@ -63,7 +63,7 @@ class ClipboardTileService : TileService() {
 
         // Post the UI update to the main thread queue slightly later 
         // to ensure the system Binder thread registers the service state switch
-        handler?.post {
+        handler.post {
             updateTile()
         }
     }
