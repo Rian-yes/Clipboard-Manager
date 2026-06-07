@@ -7,7 +7,7 @@ plugins {
     id("com.google.devtools.ksp") version "1.9.22-1.0.18" 
 }
 
-val keystorePropsFile = rootProject.file("release.properties")
+val keystorePropsFile = rootProject.file("local.properties")
 val keystoreProps = Properties()
 
 if (keystorePropsFile.exists()) {
