@@ -37,6 +37,7 @@ class AdvancedActivity : AppCompatActivity() {
     // Track views dynamically created inside the ViewPager pages
     private var sqlView: View? = null
     private var rulesView: View? = null
+    private var rulesAdapter: RulesAdapter? = null
 
     // =========================================================================
     // Lifecycle
@@ -337,186 +338,329 @@ class AdvancedActivity : AppCompatActivity() {
 
     private fun refreshRulesList() {
         val view = rulesView ?: return
-        val rulesContainer = view.findViewById<LinearLayout>(R.id.rulesContainer) ?: return
+        val rulesContainer = view.findViewById<RecyclerView>(R.id.rulesContainer) ?: return
         val tvNoRules = view.findViewById<TextView>(R.id.tvNoRules) ?: return
-
-        val rules = loadRules(prefs)
-        rulesContainer.removeAllViews()
-        tvNoRules.visibility = if (rules.isEmpty()) View.VISIBLE else View.GONE
-        rules.forEach { rule -> rulesContainer.addView(buildRuleCard(rule)) }
-    }
-
-    private fun buildRuleCard(rule: AutomationRule): View {
-    val dp = resources.displayMetrics.density
-    val pad = (12 * dp).toInt()
-
-    val card = MaterialCardView(this).apply {
-        radius = 12 * dp
-        strokeWidth = 1
-        setStrokeColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_outlineVariant))
-        cardElevation = 0f
-        setCardBackgroundColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_surface))
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { bottomMargin = (8 * dp).toInt() }
-    }
-
-    val inner = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(pad, pad, pad, (8 * dp).toInt())
-    }
-
-    // --- Row 1: Header (Title & Toggle Switch) ---
-    val row1 = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-    }
-    val nameText = TextView(this).apply {
-        text = rule.name.ifBlank { "Unnamed Rule" }
-        textSize = 14f
-        setTypeface(typeface, Typeface.BOLD)
-        setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_onSurface))
-        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-    }
-
-    // --- Collapsible Details Container ---
-    val collapsibleContainer = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
         
-        // Initial state logic: If disabled, we initialize height at 0 and clip the bounds
-        if (!rule.enabled) {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0
-            )
-            visibility = View.INVISIBLE
-        }
-    }
+        // Grab the parent NestedScrollView so we can force it to scroll
+        val scrollView = view as? androidx.core.widget.NestedScrollView ?: return
 
-    val enableSwitch = MaterialSwitch(this).apply {
-        isChecked = rule.enabled
-        setOnCheckedChangeListener { _, checked ->
+        val rules = loadRules(prefs).toMutableList()
+        tvNoRules.visibility = if (rules.isEmpty()) View.VISIBLE else View.GONE
+
+        if (rulesAdapter == null) {
+            rulesAdapter = RulesAdapter(rules)
+            rulesContainer.adapter = rulesAdapter
+
+            // --- Auto-scroll Engine ---
+            val scrollHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            var currentScrollAmount = 0
+            val scrollRunnable = object : Runnable {
+                override fun run() {
+                    if (currentScrollAmount != 0) {
+                        scrollView.scrollBy(0, currentScrollAmount)
+                        scrollHandler.postDelayed(this, 16L) // Run at ~60fps for smooth scrolling
+                    }
+                }
+            }
+
+            // Attach the Drag-and-Drop Helper
+            val touchHelper = androidx.recyclerview.widget.ItemTouchHelper(object : androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
+                androidx.recyclerview.widget.ItemTouchHelper.UP or androidx.recyclerview.widget.ItemTouchHelper.DOWN, 0
+            ) {
+                override fun onMove(
+                    recyclerView: RecyclerView,
+                    viewHolder: RecyclerView.ViewHolder,
+                    target: RecyclerView.ViewHolder
+                ): Boolean {
+                    val fromPos = viewHolder.bindingAdapterPosition
+                    val toPos = target.bindingAdapterPosition
+                    
+                    // Swap the data array in real time during the drag
+                    java.util.Collections.swap(rulesAdapter!!.rules, fromPos, toPos)
+                    rulesAdapter!!.notifyItemMoved(fromPos, toPos)
+                    return true
+                }
+
+
+                override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}
+
+                override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+                    super.clearView(recyclerView, viewHolder)
+                    
+                    // Stop scrolling instantly when the item is dropped
+                    currentScrollAmount = 0
+                    scrollHandler.removeCallbacks(scrollRunnable)
+                    
+                    // Save the new execution order to disk
+                    saveRules(prefs, rulesAdapter!!.rules)
+                }
+
+                // Inject our custom scrolling logic while the item is being dragged
+                override fun onChildDraw(
+                    c: android.graphics.Canvas,
+                    recyclerView: RecyclerView,
+                    viewHolder: RecyclerView.ViewHolder,
+                    dX: Float,
+                    dY: Float,
+                    actionState: Int,
+                    isCurrentlyActive: Boolean
+                ) {
+                    super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
+
+                    if (isCurrentlyActive && actionState == androidx.recyclerview.widget.ItemTouchHelper.ACTION_STATE_DRAG) {
+                        // 1. Get where the dragged card is on the physical screen
+                        val location = IntArray(2)
+                        viewHolder.itemView.getLocationOnScreen(location)
+                        val viewY = location[1]
+                        val viewHeight = viewHolder.itemView.height
+
+                        // 2. Get where the ScrollView is on the physical screen
+                        val scrollLocation = IntArray(2)
+                        scrollView.getLocationOnScreen(scrollLocation)
+                        val scrollY = scrollLocation[1]
+                        val scrollHeight = scrollView.height
+
+                        // 3. Define the scroll trigger zones (e.g., within 80dp of the edge)
+                        val dp = resources.displayMetrics.density
+                        val threshold = (80 * dp).toInt() 
+                        val scrollSpeed = (8 * dp).toInt() 
+                        
+                        val topBoundary = scrollY + threshold
+                        val bottomBoundary = scrollY + scrollHeight - threshold
+
+                        // 4. Decide which direction to scroll based on card location
+                        val newScrollAmount = when {
+                            viewY < topBoundary -> -scrollSpeed         // Scroll Up
+                            viewY + viewHeight > bottomBoundary -> scrollSpeed  // Scroll Down
+                            else -> 0
+                        }
+
+                        // 5. Start or stop the 60fps loop if the direction changed
+                        if (newScrollAmount != currentScrollAmount) {
+                            currentScrollAmount = newScrollAmount
+                            if (currentScrollAmount != 0) {
+                                scrollHandler.post(scrollRunnable)
+                            } else {
+                                scrollHandler.removeCallbacks(scrollRunnable)
+                            }
+                        }
+                    }
+                }
+            })
+            touchHelper.attachToRecyclerView(rulesContainer)
             
-            if (checked) {
-                // --- EXPAND ANIMATION ---
-                collapsibleContainer.visibility = View.VISIBLE
-                
-                // Measure how tall the contents want to be
-                collapsibleContainer.measure(
-                    View.MeasureSpec.makeMeasureSpec((card.width - (2 * pad)), View.MeasureSpec.AT_MOST),
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        } else {
+            rulesAdapter!!.rules = rules
+            rulesAdapter!!.notifyDataSetChanged()
+        }
+    }
+
+
+    // Wrap the programmatic cards into a RecyclerView Adapter
+        // =========================================================================
+    // Optimized Rules Adapter
+    // =========================================================================
+
+    private inner class RulesAdapter(var rules: MutableList<AutomationRule>) : RecyclerView.Adapter<RulesAdapter.ViewHolder>() {
+
+        inner class ViewHolder(
+            val container: FrameLayout,
+            val cardView: MaterialCardView,
+            val nameText: TextView,
+            val enableSwitch: MaterialSwitch,
+            val collapsibleContainer: LinearLayout,
+            val condText: TextView,
+            val actionText: TextView,
+            val editBtn: Button,
+            val deleteBtn: Button
+        ) : RecyclerView.ViewHolder(container)
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+            val dp = resources.displayMetrics.density
+            val pad = (12 * dp).toInt()
+
+            val frame = FrameLayout(this@AdvancedActivity).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
                 )
-                val targetHeight = collapsibleContainer.measuredHeight
+            }
 
-                android.animation.ValueAnimator.ofInt(0, targetHeight).apply {
-                    duration = 250
-                    interpolator = android.view.animation.DecelerateInterpolator()
-                    addUpdateListener { animator ->
-                        val value = animator.animatedValue as Int
-                        collapsibleContainer.layoutParams = collapsibleContainer.layoutParams.apply {
-                            height = value
-                        }
-                    }
-                    start()
-                }
+            val card = MaterialCardView(this@AdvancedActivity).apply {
+                radius = 12 * dp
+                strokeWidth = 1
+                setStrokeColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_outlineVariant))
+                cardElevation = 0f
+                setCardBackgroundColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_surface))
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = (8 * dp).toInt() }
+            }
+
+            val inner = LinearLayout(this@AdvancedActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(pad, pad, pad, (8 * dp).toInt())
+            }
+
+            val row1 = LinearLayout(this@AdvancedActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val nameText = TextView(this@AdvancedActivity).apply {
+                textSize = 14f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_onSurface))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            val enableSwitch = MaterialSwitch(this@AdvancedActivity)
+
+            row1.addView(nameText)
+            row1.addView(enableSwitch)
+
+            val collapsibleContainer = LinearLayout(this@AdvancedActivity).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+
+            val condText = TextView(this@AdvancedActivity).apply {
+                textSize = 12f
+                setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_onSurfaceVariant))
+                setPadding(0, (4 * dp).toInt(), 0, 0)
+            }
+
+            val actionText = TextView(this@AdvancedActivity).apply {
+                textSize = 12f
+                setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_primary))
+                setPadding(0, (2 * dp).toInt(), 0, 0)
+            }
+
+            val btnRow = LinearLayout(this@AdvancedActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, (6 * dp).toInt(), 0, 0)
+            }
+            val editBtn = Button(this@AdvancedActivity).apply {
+                text = "Edit"
+                isAllCaps = false
+                background = null
+                textSize = 12f
+                setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_primary))
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { marginEnd = (4 * dp).toInt() }
+            }
+            val deleteBtn = Button(this@AdvancedActivity).apply {
+                text = "Delete"
+                isAllCaps = false
+                background = null
+                textSize = 12f
+                setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_error))
+            }
+            
+            btnRow.addView(editBtn)
+            btnRow.addView(deleteBtn)
+
+            collapsibleContainer.addView(condText)
+            collapsibleContainer.addView(actionText)
+            collapsibleContainer.addView(btnRow)
+
+            inner.addView(row1)
+            inner.addView(collapsibleContainer)
+            card.addView(inner)
+            frame.addView(card)
+
+            return ViewHolder(frame, card, nameText, enableSwitch, collapsibleContainer, condText, actionText, editBtn, deleteBtn)
+        }
+
+        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+            val rule = rules[position]
+            val dp = resources.displayMetrics.density
+            val pad = (12 * dp).toInt()
+
+            holder.nameText.text = rule.name.ifBlank { "Unnamed Rule" }
+            holder.condText.text = buildConditionSummary(rule)
+            holder.actionText.text = buildActionSummary(rule)
+
+            // Remove listener temporarily so programmatic changes don't trigger saves
+            holder.enableSwitch.setOnCheckedChangeListener(null)
+            holder.enableSwitch.isChecked = rule.enabled
+
+            // Reset collapsible container state without animating
+            if (!rule.enabled) {
+                holder.collapsibleContainer.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, 0
+                )
+                holder.collapsibleContainer.visibility = View.INVISIBLE
             } else {
-                // --- COLLAPSE ANIMATION ---
-                val initialHeight = collapsibleContainer.height
+                holder.collapsibleContainer.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                holder.collapsibleContainer.visibility = View.VISIBLE
+            }
 
-                android.animation.ValueAnimator.ofInt(initialHeight, 0).apply {
-                    duration = 250
-                    interpolator = android.view.animation.AccelerateInterpolator()
-                    addUpdateListener { animator ->
-                        val value = animator.animatedValue as Int
-                        collapsibleContainer.layoutParams = collapsibleContainer.layoutParams.apply {
-                            height = value
+            holder.enableSwitch.setOnCheckedChangeListener { _, checked ->
+                if (checked) {
+                    holder.collapsibleContainer.visibility = View.VISIBLE
+                    holder.collapsibleContainer.measure(
+                        View.MeasureSpec.makeMeasureSpec((holder.cardView.width - (2 * pad)), View.MeasureSpec.AT_MOST),
+                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                    )
+                    val targetHeight = holder.collapsibleContainer.measuredHeight
+
+                    android.animation.ValueAnimator.ofInt(0, targetHeight).apply {
+                        duration = 250
+                        interpolator = android.view.animation.DecelerateInterpolator()
+                        addUpdateListener { animator ->
+                            holder.collapsibleContainer.layoutParams = holder.collapsibleContainer.layoutParams.apply {
+                                height = animator.animatedValue as Int
+                            }
                         }
+                        start()
                     }
-                    // Clean up visibility once the shrinking finishes so it stops drawing
-                    addListener(object : android.animation.AnimatorListenerAdapter() {
-                        override fun onAnimationEnd(animation: android.animation.Animator) {
-                            if (!isChecked) collapsibleContainer.visibility = View.INVISIBLE
+                } else {
+                    val initialHeight = holder.collapsibleContainer.height
+                    android.animation.ValueAnimator.ofInt(initialHeight, 0).apply {
+                        duration = 250
+                        interpolator = android.view.animation.AccelerateInterpolator()
+                        addUpdateListener { animator ->
+                            holder.collapsibleContainer.layoutParams = holder.collapsibleContainer.layoutParams.apply {
+                                height = animator.animatedValue as Int
+                            }
                         }
-                    })
-                    start()
+                        addListener(object : android.animation.AnimatorListenerAdapter() {
+                            override fun onAnimationEnd(animation: android.animation.Animator) {
+                                if (!holder.enableSwitch.isChecked) holder.collapsibleContainer.visibility = View.INVISIBLE
+                            }
+                        })
+                        start()
+                    }
+                }
+
+                // Persist state to Preferences
+                val list = loadRules(prefs).toMutableList()
+                val idx = list.indexOfFirst { it.id == rule.id }
+                if (idx >= 0) { 
+                    list[idx] = list[idx].copy(enabled = checked)
+                    saveRules(prefs, list) 
                 }
             }
 
-            // Persist state to Preferences
-            val list = loadRules(prefs).toMutableList()
-            val idx = list.indexOfFirst { it.id == rule.id }
-            if (idx >= 0) { 
-                list[idx] = list[idx].copy(enabled = checked)
-                saveRules(prefs, list) 
+            holder.editBtn.setOnClickListener { showRuleDialog(rule) }
+            
+            holder.deleteBtn.setOnClickListener {
+                AlertDialog.Builder(this@AdvancedActivity)
+                    .setTitle("Delete Rule")
+                    .setMessage("Delete \"${rule.name}\"? This cannot be undone.")
+                    .setPositiveButton("Delete") { _, _ ->
+                        saveRules(prefs, loadRules(prefs).filter { it.id != rule.id })
+                        refreshRulesList()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
             }
         }
-    }
-    row1.addView(nameText)
-    row1.addView(enableSwitch)
 
-    // --- Rule Body Contents ---
-    val condText = TextView(this).apply {
-        text = buildConditionSummary(rule)
-        textSize = 12f
-        setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_onSurfaceVariant))
-        setPadding(0, (4 * dp).toInt(), 0, 0)
+        override fun getItemCount() = rules.size
     }
-
-    val actionText = TextView(this).apply {
-        text = buildActionSummary(rule)
-        textSize = 12f
-        setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_primary))
-        setPadding(0, (2 * dp).toInt(), 0, 0)
-    }
-
-    val btnRow = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        setPadding(0, (6 * dp).toInt(), 0, 0)
-    }
-    val editBtn = Button(this).apply {
-        text = "Edit"
-        isAllCaps = false
-        background = null
-        textSize = 12f
-        setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_primary))
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { marginEnd = (4 * dp).toInt() }
-        setOnClickListener { showRuleDialog(rule) }
-    }
-    val deleteBtn = Button(this).apply {
-        text = "Delete"
-        isAllCaps = false
-        background = null
-        textSize = 12f
-        setTextColor(ContextCompat.getColor(this@AdvancedActivity, R.color.md_theme_error))
-        setOnClickListener {
-            AlertDialog.Builder(this@AdvancedActivity)
-                .setTitle("Delete Rule")
-                .setMessage("Delete \"${rule.name}\"? This cannot be undone.")
-                .setPositiveButton("Delete") { _, _ ->
-                    saveRules(prefs, loadRules(prefs).filter { it.id != rule.id })
-                    refreshRulesList()
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
-        }
-    }
-    btnRow.addView(editBtn)
-    btnRow.addView(deleteBtn)
-
-    // Assemble components
-    collapsibleContainer.addView(condText)
-    collapsibleContainer.addView(actionText)
-    collapsibleContainer.addView(btnRow)
-
-    inner.addView(row1)
-    inner.addView(collapsibleContainer)
-    card.addView(inner)
-    
-    return card
-}
 
     private fun buildConditionSummary(rule: AutomationRule): String {
         val parts = mutableListOf<String>()
