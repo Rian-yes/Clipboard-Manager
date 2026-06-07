@@ -133,11 +133,14 @@ class ClipboardAdapter(
                 addListener(object : android.animation.AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: android.animation.Animator) {
                         view.tag = null
+                        // FIX: Release the hardcoded height so it doesn't squish contents
+                        view.layoutParams = view.layoutParams.apply { height = ViewGroup.LayoutParams.WRAP_CONTENT }
                     }
                 })
                 view.tag = this
                 start()
             }
+
 
             arrow.animate()
                 .rotation(180f)
@@ -242,9 +245,8 @@ class ClipboardAdapter(
                 }
         
                 val typeLabel = if (isImage) "Image" else item.appName ?: "Unknown"
-        metaText.text = "$typeLabel • ${getRelativeTime(item.timestamp, item.date)}"
-        metaText.setTextColor(colorOnSurfaceVar)
-
+                metaText.text = "$typeLabel • ${getRelativeTime(item.timestamp, item.date)}"
+                metaText.setTextColor(colorOnSurfaceVar)
         
                 if (displayConfig.showAppName) {
                     appNameText.visibility = View.VISIBLE
@@ -295,25 +297,25 @@ class ClipboardAdapter(
                     }
                 }.trimEnd()
         
-if (extraText.isBlank()) {
-    extraDetailsText.visibility = View.GONE
-} else {
-    extraDetailsText.visibility = View.VISIBLE
-    extraDetailsText.text       = extraText
-    extraDetailsText.setTextColor(colorOnSurfaceVar)
-}
-
-// Word / character count — text clips only
-if (!isImage && !isSensitiveHidden && item.clip != null) {
-    val charCount = item.clip.length
-    val wordCount = item.clip.trim()
-        .split(Regex("\\s+"))
-        .count { it.isNotEmpty() }
-    binding.wordCharCount.text = "$charCount chars · $wordCount words"
-    binding.wordCharCount.visibility = View.VISIBLE
-} else {
-    binding.wordCharCount.visibility = View.GONE
-}
+                if (extraText.isBlank()) {
+                    extraDetailsText.visibility = View.GONE
+                } else {
+                    extraDetailsText.visibility = View.VISIBLE
+                    extraDetailsText.text       = extraText
+                    extraDetailsText.setTextColor(colorOnSurfaceVar)
+                }
+                
+                // Word / character count — text clips only
+                if (!isImage && !isSensitiveHidden && item.clip != null) {
+                    val charCount = item.clip.length
+                    val wordCount = item.clip.trim()
+                        .split(Regex("\\s+"))
+                        .count { it.isNotEmpty() }
+                    binding.wordCharCount.text = "$charCount chars · $wordCount words"
+                    binding.wordCharCount.visibility = View.VISIBLE
+                } else {
+                    binding.wordCharCount.visibility = View.GONE
+                }
 
                 // if (isSensitiveHidden && expandedIds.contains(item.id)) {
                 //     onExpandClick(item.id)
@@ -332,21 +334,17 @@ if (!isImage && !isSensitiveHidden && item.clip != null) {
                     // SYNCHRONIZED STATIC STATES:
                     if (canExpand) {
                         detailContainer.visibility = View.VISIBLE
-                        
-                        detailContainer.measure(
-                            View.MeasureSpec.makeMeasureSpec(root.width, View.MeasureSpec.AT_MOST),
-                            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                        )
-                        detailContainer.layoutParams.height = detailContainer.measuredHeight
+                        // FIX: Let Android calculate the height natively instead of measuring it manually
+                        detailContainer.layoutParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
                         expandArrow.rotation = 180f
                     } else {
                         // If it's sensitive and hidden, ensure it collapses completely 
-                        // without throwing exceptions or executing feedback loops.
-                        detailContainer.visibility = View.GONE // Changed from INVISIBLE to GONE to save layout overhead
+                        detailContainer.visibility = View.GONE 
                         detailContainer.layoutParams.height = 0 
                         expandArrow.rotation = 0f
                     }
                 }
+
 
                 root.isChecked = isSelected
                 root.setCardBackgroundColor(
