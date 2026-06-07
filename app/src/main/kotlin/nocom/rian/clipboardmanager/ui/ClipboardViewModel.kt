@@ -304,10 +304,19 @@ class ClipboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun delete(item: ClipboardItem) = viewModelScope.launch(Dispatchers.IO) {
-        deleteImageFileIfNeeded(item)
+        // Add a flag to delay file deletion
+    fun delete(item: ClipboardItem, deleteFile: Boolean = true) = viewModelScope.launch(Dispatchers.IO) {
+        if (deleteFile) {
+            deleteImageFileIfNeeded(item)
+        }
         repository.delete(item)
     }
+
+    // Add a new function specifically to clean up the file later
+    fun deleteImageFile(item: ClipboardItem) = viewModelScope.launch(Dispatchers.IO) {
+        deleteImageFileIfNeeded(item)
+    }
+
 
     fun deleteAllUnpinned() = viewModelScope.launch(Dispatchers.IO) {
         repository.getUnpinnedItems().forEach { deleteImageFileIfNeeded(it) }
@@ -351,6 +360,27 @@ class ClipboardViewModel(application: Application) : AndroidViewModel(applicatio
             clipboard.setPrimaryClip(
                 android.content.ClipData.newPlainText("Copied Clip", item.clip)
             )
+        }
+    }
+    // ── 8. GARBAGE COLLECTION ──────────────────────────────────────────────────
+
+    fun cleanupOrphanedFiles(vararg directories: java.io.File) = viewModelScope.launch(Dispatchers.IO) {
+        // 1. Hit the database exactly ONCE
+        val validPaths = repository.getAllClips()
+            .mapNotNull { it.filePath }
+            .toSet()
+
+        // 2. Loop through every directory you passed in
+        directories.forEach { directory ->
+            if (directory.exists() && directory.isDirectory) {
+                directory.listFiles()?.forEach { file ->
+                    // 3. Delete if it's not in the database
+                    if (!validPaths.contains(file.absolutePath)) {
+                        android.util.Log.d("ClipboardViewModel", "Garbage collected orphaned file: ${file.name}")
+                        file.delete()
+                    }
+                }
+            }
         }
     }
 }
