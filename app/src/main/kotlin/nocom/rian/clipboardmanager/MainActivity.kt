@@ -49,6 +49,13 @@ class MainActivity : AppCompatActivity() {
             getSystemService(NotificationManager::class.java)?.cancel(1)
         }
 
+        // --- Run garbage collection for all physical file directories ---
+        val imageDir = java.io.File(getExternalFilesDir(null), "clipboard_images")
+        val mediaDir = java.io.File(getExternalFilesDir(null), "clipboard_media")
+        
+        // Pass as many directories as you need separated by commas
+        viewModel.cleanupOrphanedFiles(imageDir, mediaDir)
+        
         requestNotificationPermissionThenStart()
         setupBackPressHandler()
         setupRecyclerView()
@@ -110,7 +117,23 @@ class MainActivity : AppCompatActivity() {
             onPinClick       = { item -> viewModel.togglePin(item) },
             onExpandClick    = { id   -> viewModel.toggleExpand(id) },
             onLongClick      = { item -> viewModel.toggleSelection(item) },
-            onDeleteClick    = { item -> viewModel.delete(item) },
+            onDeleteClick    = { item -> 
+                val isImage = item.mimeType?.startsWith("image/") == true
+                
+                viewModel.delete(item, deleteFile = false)
+                
+                val snackbar = Snackbar.make(binding.root, "Clip deleted", Snackbar.LENGTH_LONG)
+                snackbar.setAction("Undo") { viewModel.restoreClip(item) }
+                
+                snackbar.addCallback(object : com.google.android.material.snackbar.Snackbar.Callback() {
+                    override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                        if (event != DISMISS_EVENT_ACTION && isImage) {
+                            viewModel.deleteImageFile(item)
+                        }
+                    }
+                })
+                snackbar.show()
+            },
             onCopyClick      = { item -> handleCopyAction(item) },
             onFavoriteClick  = { item -> viewModel.toggleFavorite(item) },
             onSensitiveClick = { item -> viewModel.toggleSensitive(item) },
@@ -135,7 +158,7 @@ class MainActivity : AppCompatActivity() {
             })
         }
     }
-    
+
     private fun setupClickListeners() {
         binding.btnAddClip.setOnClickListener {
             val text = binding.editClipInput.text.toString()
@@ -183,27 +206,27 @@ class MainActivity : AppCompatActivity() {
             }
         )
     }
-
-private fun setupSwipeToDelete() {
-    val deleteIcon = androidx.core.content.ContextCompat.getDrawable(
-        this, android.R.drawable.ic_menu_delete
-    )!!.mutate()
-    androidx.core.graphics.drawable.DrawableCompat.setTint(
-        deleteIcon,
-        androidx.core.content.ContextCompat.getColor(this, R.color.md_theme_onError)
-    )
     
-    // Use GradientDrawable instead of ColorDrawable to support rounded corners
-    val background = android.graphics.drawable.GradientDrawable().apply {
-        shape = android.graphics.drawable.GradientDrawable.RECTANGLE
-        setColor(androidx.core.content.ContextCompat.getColor(this@MainActivity, R.color.md_theme_error))
-    }
-
-    val swipeCallback = object : androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
-        0,
-        androidx.recyclerview.widget.ItemTouchHelper.LEFT or
-        androidx.recyclerview.widget.ItemTouchHelper.RIGHT
-    ) {
+    private fun setupSwipeToDelete() {
+        val deleteIcon = androidx.core.content.ContextCompat.getDrawable(
+            this, android.R.drawable.ic_menu_delete
+        )!!.mutate()
+        androidx.core.graphics.drawable.DrawableCompat.setTint(
+            deleteIcon,
+            androidx.core.content.ContextCompat.getColor(this, R.color.md_theme_onError)
+        )
+        
+        // Use GradientDrawable instead of ColorDrawable to support rounded corners
+        val background = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+            setColor(androidx.core.content.ContextCompat.getColor(this@MainActivity, R.color.md_theme_error))
+        }
+    
+        val swipeCallback = object : androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
+            0,
+            androidx.recyclerview.widget.ItemTouchHelper.LEFT or
+            androidx.recyclerview.widget.ItemTouchHelper.RIGHT
+        ) {
         override fun onMove(
             recyclerView: RecyclerView,
             viewHolder: RecyclerView.ViewHolder,
@@ -222,14 +245,28 @@ private fun setupSwipeToDelete() {
             val item = clipboardAdapter.currentList.getOrNull(position) ?: return
             val isImage = item.mimeType?.startsWith("image/") == true
 
-            viewModel.delete(item)
+            // 1. Delete from DB only (removes it from UI immediately)
+            viewModel.delete(item, deleteFile = false)
 
             val snackbar = Snackbar.make(binding.root, "Clip deleted", Snackbar.LENGTH_LONG)
-            if (!isImage) {
-                snackbar.setAction("Undo") { viewModel.restoreClip(item) }
-            }
+            
+            // 2. Allow Undo for ALL clips now
+            snackbar.setAction("Undo") { viewModel.restoreClip(item) }
+
+            // 3. Listen for the Snackbar disappearing
+            snackbar.addCallback(object : com.google.android.material.snackbar.Snackbar.Callback() {
+                override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                    // DISMISS_EVENT_ACTION means they clicked "Undo".
+                    // Any other event (timeout, swipe away, etc.) means deletion is final.
+                    if (event != DISMISS_EVENT_ACTION && isImage) {
+                        viewModel.deleteImageFile(item)
+                    }
+                }
+            })
+            
             snackbar.show()
         }
+
 
         override fun onChildDraw(
             c: android.graphics.Canvas,
