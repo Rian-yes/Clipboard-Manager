@@ -73,6 +73,7 @@ class MainActivity : AppCompatActivity() {
         applyManualEntryVisibility()
         checkAndShowShizukuStatus()
         clipboardAdapter.setDisplayConfig(buildDisplayConfig())
+        checkOverlayPermissionGuard()
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -434,6 +435,31 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun checkOverlayPermissionGuard() {
+        val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE)
+        val isSettingEnabled = prefs.getBoolean(SettingsActivity.KEY_FLOATING_OVERLAY_ENABLED, true)
+    
+        if (isSettingEnabled) {
+            val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                android.provider.Settings.canDrawOverlays(this)
+            } else {
+                true
+            }
+    
+            if (!hasPermission) {
+                Toast.makeText(
+                    this, 
+                    "Overlay feature enabled, but requires 'Display over other apps' permission!", 
+                    Toast.LENGTH_LONG
+                ).show()
+                
+                // Redirect smoothly to your permission manager activity
+                val intent = Intent(this, PermissionActivity::class.java)
+                startActivity(intent)
+            }
+        }
+    }
+    
     // =========================================================================
     // 5. Dialogs, Sheets, & Overlay Windows
     // =========================================================================

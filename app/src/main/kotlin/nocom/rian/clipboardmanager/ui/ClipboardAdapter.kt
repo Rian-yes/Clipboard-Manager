@@ -35,7 +35,8 @@ class ClipboardAdapter(
     private val onSensitiveClick: (ClipboardItem) -> Unit,
     private val onLabelEditClick: (ClipboardItem) -> Unit,
     private val onRevealClick: (Int) -> Unit,
-    private val onEditClick: (ClipboardItem) -> Unit
+    private val onEditClick: (ClipboardItem) -> Unit,
+    private val initialConfig: ClipDisplayConfig = ClipDisplayConfig()
 ) : ListAdapter<ClipboardItem, ClipboardAdapter.ClipboardViewHolder>(DiffCallback) {
 
     private var expandedIds: Set<Int> = emptySet()
@@ -43,7 +44,7 @@ class ClipboardAdapter(
     private var localStateOverrides: Map<Int, ClipboardItem> = emptyMap()
     private var revealedIds: Set<Int> = emptySet()
     private var selectedIds: Set<Int> = emptySet()
-    private var displayConfig: ClipDisplayConfig = ClipDisplayConfig()
+    private var displayConfig: ClipDisplayConfig = initialConfig
 
     // =====================================================================
     // 1. Public State Configuration APIs

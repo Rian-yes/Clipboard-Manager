@@ -54,7 +54,8 @@ class ClipboardService : Service() {
     private var clipboardService: IClipboard? = null
     private var activityManager: IActivityManager? = null
     private var iPackageManager: IPackageManager? = null
-    
+    private var overlayWindowManager: OverlayWindowManager? = null
+
     private var lastCopiedText: String? = null
     private var lastTimestamp: Long = 0
     private val CHANNEL_ID = "clipboard_monitor_channel"
@@ -76,6 +77,18 @@ class ClipboardService : Service() {
     @Volatile var isRunning = false
     const val ACTION_STOP_MONITORING = "nocom.rian.clipboardmanager.STOP_MONITORING"
 }
+    private val overlayToggleReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == "nocom.rian.ACTION_TOGGLE_OVERLAY") {
+                val enabled = intent.getBooleanExtra("enabled", true)
+                if (enabled && SettingsActivity.isOverlayFeatureAllowed(context)) {
+                    overlayWindowManager?.showFloatingTrigger()
+                } else {
+                    overlayWindowManager?.removeAll()
+                }
+            }
+        }
+    }
 
     // region Asynchronous Callbacks & Broadcast Receivers
     private val prefChangeListener =
@@ -156,6 +169,20 @@ class ClipboardService : Service() {
         getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
             .registerOnSharedPreferenceChangeListener(prefChangeListener)
 
+         // Add this right below where repository = ClipboardRepository(...) is assigned
+        overlayWindowManager = OverlayWindowManager(this, repository, serviceScope)
+        
+        if (SettingsActivity.isOverlayFeatureAllowed(this)) {
+            overlayWindowManager?.showFloatingTrigger()
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(overlayToggleReceiver, IntentFilter("nocom.rian.ACTION_TOGGLE_OVERLAY"), RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(overlayToggleReceiver, IntentFilter("nocom.rian.ACTION_TOGGLE_OVERLAY"))
+        }
+
         Shizuku.addBinderDeadListener(shizukuBinderDeadListener)
         Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
         Shizuku.addRequestPermissionResultListener(shizukuPermissionResultListener)
@@ -208,6 +235,7 @@ class ClipboardService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onDestroy() {
+        overlayWindowManager?.removeAll()
         isRunning = false
         stopForeground(STOP_FOREGROUND_REMOVE)
         getSystemService(NotificationManager::class.java)?.cancel(1)
@@ -219,14 +247,15 @@ class ClipboardService : Service() {
         Shizuku.removeRequestPermissionResultListener(shizukuPermissionResultListener)
         teardownShizukuServices()
         try { unregisterReceiver(screenUnlockReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(overlayToggleReceiver) } catch (e: Exception) {}
         try {
             TileService.requestListeningState(
             this,
             ComponentName(this, ClipboardTileService::class.java)
-        )
-    } catch (e: Exception) {
-        android.util.Log.e("ClipboardService", "Failed to update tile on destroy", e)
-    }
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("ClipboardService", "Failed to update tile on destroy", e)
+        }
         super.onDestroy()
     }
 
