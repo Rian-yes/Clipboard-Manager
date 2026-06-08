@@ -62,6 +62,12 @@ class PermissionActivity : AppCompatActivity() {
         startClipboardService()
     }
     
+    private val overlayPermissionLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) {
+        refreshOverlayStatus()
+    }
+    
     private val batteryOptLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) {
@@ -91,6 +97,7 @@ class PermissionActivity : AppCompatActivity() {
         checkAndRefreshShizukuStatus()
         refreshNotificationStatus()
         refreshBatteryStatus()
+        refreshOverlayStatus()
     }
 
     override fun onSupportNavigateUp(): Boolean {
@@ -130,6 +137,16 @@ class PermissionActivity : AppCompatActivity() {
                 batteryOptLauncher.launch(
                     Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
                 )
+            }
+        }
+        // Add click listener for your overlay permission button
+        binding.btnGrantOverlay.setOnClickListener {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val intent = Intent(
+                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    android.net.Uri.parse("package:$packageName")
+                )
+                overlayPermissionLauncher.launch(intent)
             }
         }
     }
@@ -273,6 +290,35 @@ class PermissionActivity : AppCompatActivity() {
             binding.batteryStatusText.text = "Not exempt — OS may kill the monitoring service"
             binding.btnExemptBattery.isEnabled = true
             binding.btnExemptBattery.text = "Exempt"
+        }
+    }
+    
+    private fun refreshOverlayStatus() {
+        val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            android.provider.Settings.canDrawOverlays(this)
+        } else {
+            true
+        }
+        updateOverlayStatusUi(granted)
+    }
+    
+    private fun updateOverlayStatusUi(isGranted: Boolean) {
+        if (isGranted) {
+            binding.overlayStatusIcon.setImageResource(android.R.drawable.checkbox_on_background)
+            binding.overlayStatusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
+                getColor(android.R.color.holo_green_dark)
+            )
+            binding.overlayStatusText.text = "Granted — Floating search layout fully operational"
+            binding.btnGrantOverlay.isEnabled = false
+            binding.btnGrantOverlay.text = "Granted"
+        } else {
+            binding.overlayStatusIcon.setImageResource(android.R.drawable.ic_dialog_alert)
+            binding.overlayStatusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
+                getColor(android.R.color.holo_red_light)
+            )
+            binding.overlayStatusText.text = "Not granted — floating search menu remains disabled"
+            binding.btnGrantOverlay.isEnabled = true
+            binding.btnGrantOverlay.text = "Grant"
         }
     }
 }
