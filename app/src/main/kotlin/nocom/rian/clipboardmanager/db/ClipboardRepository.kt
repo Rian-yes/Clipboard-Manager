@@ -53,6 +53,9 @@ class ClipboardRepository(private val clipboardDao: ClipboardDao) {
         
     suspend fun getAllClips(): List<ClipboardItem> = clipboardDao.getAllClipsOnce()
     
+    suspend fun searchClips(query: String): Flow<List<ClipboardItem>> {
+        return clipboardDao.searchClips("%$query%")
+    }
     /**
      * Fetches expiring clips exceeding the cap, deletes their associated image files,
      * and clears them from the database atomically.

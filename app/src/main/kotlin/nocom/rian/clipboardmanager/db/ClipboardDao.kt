@@ -20,6 +20,9 @@ interface ClipboardDao {
     @Query("SELECT * FROM clipboardmanager ORDER BY is_pinned DESC, timestamp DESC")
     fun getAllClips(): Flow<List<ClipboardItem>>
 
+    @Query("SELECT * FROM clipboardmanager WHERE clip LIKE :query ORDER BY is_pinned DESC, timestamp DESC")
+    fun searchClips(query: String): Flow<List<ClipboardItem>>
+    
     @Query("SELECT * FROM clipboardmanager WHERE is_favorite = 1 ORDER BY is_pinned DESC, timestamp DESC")
     fun getFavoriteClips(): Flow<List<ClipboardItem>>
 
