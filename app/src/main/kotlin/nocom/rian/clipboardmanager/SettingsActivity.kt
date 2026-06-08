@@ -215,7 +215,7 @@ class SettingsActivity : AppCompatActivity() {
     
     // ── Interaction Listeners (Sliders & Configuration Switches) ──────────────
  
-        private fun setupSliderListeners() {
+    private fun setupSliderListeners() {
         binding.switchMonitoring.setOnCheckedChangeListener { buttonView, isChecked ->
             // 1. Prevent Android's view state restoration from triggering this programmatically
             if (!buttonView.isPressed) return@setOnCheckedChangeListener
@@ -250,6 +250,19 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        binding.switchFloatingOverlay.apply {
+            isChecked = prefs.getBoolean(KEY_FLOATING_OVERLAY_ENABLED, true)
+            setOnCheckedChangeListener { _, isChecked ->
+                prefs.edit().putBoolean(KEY_FLOATING_OVERLAY_ENABLED, isChecked).apply()
+                
+                // Fire local control broadcast directly targeting the ClipboardService lifecycle loop
+                val intent = Intent("nocom.rian.ACTION_TOGGLE_OVERLAY").apply {
+                    putExtra("enabled", isChecked)
+                    setPackage(packageName)
+                }
+                sendBroadcast(intent)
+            }
+        }
  
         binding.sliderAutoDelete.addOnChangeListener { _, value, _ ->
             val days = value.toInt()
@@ -886,7 +899,7 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_MONITORING_ENABLED = "monitoring_enabled"
         const val KEY_SENSITIVE_PACKAGES = "sensitive_packages"
         const val KEY_EXCLUDED_PACKAGES  = "excluded_packages"
-    
+        const val KEY_FLOATING_OVERLAY_ENABLED = "floating_overlay_enabled"
         // Display field toggles (expanded clip view)
         const val KEY_SHOW_FIELD_APP_NAME      = "show_field_app_name"
         const val KEY_SHOW_FIELD_PACKAGE       = "show_field_package"
@@ -908,5 +921,22 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_LOG_FIELD_PREV_PACKAGE  = "log_field_prev_package"
         const val KEY_LOG_FIELD_PREV_WINDOW   = "log_field_prev_window"
         const val KEY_LOG_FIELD_PREV_ACTIVITY = "log_field_prev_activity"
+        
+        /**
+        * Checks if the floating overlay feature should be displayed based on 
+        * user settings configuration and Android system hardware permissions.
+        */
+        fun isOverlayFeatureAllowed(context: Context): Boolean {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val isSettingEnabled = prefs.getBoolean(KEY_FLOATING_OVERLAY_ENABLED, true)
+            
+            val hasSystemPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                android.provider.Settings.canDrawOverlays(context)
+            } else {
+                true
+            }
+            
+            return isSettingEnabled && hasSystemPermission
+        }
     }
 }
