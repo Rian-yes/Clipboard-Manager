@@ -14,6 +14,9 @@ class ClipboardRepository(private val clipboardDao: ClipboardDao) {
     suspend fun count(): Int = clipboardDao.getTotalClipCount()
 
     suspend fun findByContent(text: String): ClipboardItem? = clipboardDao.findByContent(text)
+    
+    suspend fun findByHash(hash: String): ClipboardItem? = clipboardDao.findByHash(hash)
+
     suspend fun findByHashAndPackage(hash: String, packageName: String): ClipboardItem? =
         clipboardDao.findByHashAndPackage(hash, packageName)
 

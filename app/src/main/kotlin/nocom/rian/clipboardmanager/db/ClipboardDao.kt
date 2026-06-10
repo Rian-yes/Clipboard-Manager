@@ -32,6 +32,9 @@ interface ClipboardDao {
     @Query("SELECT * FROM clipboardmanager WHERE clip = :text LIMIT 1")
     suspend fun findByContent(text: String): ClipboardItem?
 
+    @Query("SELECT * FROM clipboardmanager WHERE image_hash = :hash LIMIT 1")
+    suspend fun findByHash(hash: String): ClipboardItem?
+
     @Query("SELECT * FROM clipboardmanager WHERE image_hash = :hash AND packageName = :packageName LIMIT 1")
     suspend fun findByHashAndPackage(hash: String, packageName: String): ClipboardItem?
 
