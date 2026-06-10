@@ -344,6 +344,10 @@ class ClipboardViewModel(application: Application) : AndroidViewModel(applicatio
         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
                 as android.content.ClipboardManager
 
+//        val internalFlag = android.os.PersistableBundle().apply {
+//            putBoolean("IS_INTERNAL_COPY", true)
+//        }
+
         if (item.mimeType?.startsWith("image/") == true) {
             val file = java.io.File(item.filePath ?: return)
             if (!file.exists()) {
@@ -353,13 +357,13 @@ class ClipboardViewModel(application: Application) : AndroidViewModel(applicatio
             val uri = androidx.core.content.FileProvider.getUriForFile(
                 context, "${context.packageName}.fileprovider", file
             )
-            clipboard.setPrimaryClip(
-                android.content.ClipData.newUri(context.contentResolver, "Copied Image", uri)
-            )
+            val clipData = android.content.ClipData.newUri(context.contentResolver, "Copied Image", uri)
+//         // clipData.description.extras = internalFlag
+            clipboard.setPrimaryClip(clipData)
         } else {
-            clipboard.setPrimaryClip(
-                android.content.ClipData.newPlainText("Copied Clip", item.clip)
-            )
+            val clipData = android.content.ClipData.newPlainText("Copied Clip", item.clip)
+            // clipData.description.extras = internalFlag
+            clipboard.setPrimaryClip(clipData)
         }
     }
     // ── 8. GARBAGE COLLECTION ──────────────────────────────────────────────────

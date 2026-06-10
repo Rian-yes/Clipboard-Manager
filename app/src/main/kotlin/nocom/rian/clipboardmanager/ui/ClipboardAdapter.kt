@@ -22,7 +22,8 @@ data class ClipDisplayConfig(
     val showPrevAppName: Boolean = true,
     val showPrevPackageName: Boolean = true,
     val showPrevWindowLabel: Boolean = true,
-    val showPrevActivityName: Boolean = true
+    val showPrevActivityName: Boolean = true,
+    val showQuickCopy: Boolean = true 
 )
 
 class ClipboardAdapter(
@@ -264,11 +265,19 @@ class ClipboardAdapter(
                 } else {
                     fullPackageText.visibility = View.GONE
                 }
-        
+                
+                // Inside your adapter binding logic (where config is evaluated):
+                if (displayConfig.showQuickCopy) {
+                    binding.quickCopy.visibility = View.VISIBLE
+                } else {
+                    binding.quickCopy.visibility = View.GONE
+                }
+
                 val extraText = buildString {
                     if (displayConfig.showTechnicalDetails) {
                         append("ID: ${item.id}\n")
                         append("Type: ${item.mimeType ?: "text/plain"}\n")
+                        append("Time: ${item.time}\n")
                         append("Date: ${item.date}\n")
                     }
                     if (displayConfig.showWindowLabel && item.windowLabel != null) {
@@ -399,25 +408,45 @@ class ClipboardAdapter(
         
                 // ── DYNAMIC EXTRACTIONS FROM THE LIST TO AVOID CAPTURING STALE VARS ──
                 // --- 7. View Event Trigger Wire-ups ---
+                // Find your root click logic inside ClipboardViewHolder -> bind()
                 root.setOnClickListener {
                     if (selectedIds.isNotEmpty()) {
+                        // If items are selected (multi-select mode), treat single click as a selection click
                         onLongClick(item)
                     } else {
-                        // If it's sensitive and currently hidden, clicking the card 
-                        // shouldn't fire an expansion/collapse toggle at all.
                         if (isSensitiveHidden) {
-                            // Optional: You can choose to reveal the item here instead:
-                            // onRevealClick(item.id)
                             return@setOnClickListener
                         }
-                        onExpandClick(item.id)
+                        
+                        // ─── LOOK HERE ───
+                        if (!displayConfig.showQuickCopy) {
+                            // We are in the Overlay window! Single click triggers COPY instead of expanding
+                            val pos = bindingAdapterPosition
+                            if (pos != RecyclerView.NO_POSITION) {
+                                onCopyClick(getItem(pos))
+                            }
+                        } else {
+                            // We are in the MainActivity! Default behavior: expand item
+                            onExpandClick(item.id)
+                        }
                     }
                 }
-
-                root.setOnLongClickListener { 
-                    val pos = bindingAdapterPosition
-                    if (pos != RecyclerView.NO_POSITION) onLongClick(getItem(pos))
-                    true 
+                
+                // Update the long click listener right below it
+                root.setOnLongClickListener {
+                    if (isSensitiveHidden) {
+                        return@setOnLongClickListener true
+                    }
+                    
+                    // ─── LOOK HERE ───
+                    if (!displayConfig.showQuickCopy) {
+                        // We are in the Overlay window! Long click handles expanding the clip layout view
+                        onLongClick(item)
+                    } else {
+                        // We are in the MainActivity! Long click enters selection mode
+                        onLongClick(item)
+                    }
+                    true
                 }
 
                 quickCopy.setOnClickListener { 
@@ -448,22 +477,21 @@ class ClipboardAdapter(
                     bindState(freshItem)
                     onFavoriteClick(freshItem)
                 }
+                
+                chipSensitive.setOnClickListener {
+                    val pos = bindingAdapterPosition
+                    if (pos == RecyclerView.NO_POSITION) return@setOnClickListener
+                    val current = localStateOverrides[item.id] ?: item
+                    
+                    // If turning sensitivity ON and it's currently expanded, clear the expansion state cleanly
+                    if (!current.isSensitive && expandedIds.contains(item.id)) {
+                        onExpandClick(item.id) 
+                    }
         
-          chipSensitive.setOnClickListener {
-            val pos = bindingAdapterPosition
-            if (pos == RecyclerView.NO_POSITION) return@setOnClickListener
-            val current = localStateOverrides[item.id] ?: item
-            
-            // If turning sensitivity ON and it's currently expanded, clear the expansion state cleanly
-            if (!current.isSensitive && expandedIds.contains(item.id)) {
-                onExpandClick(item.id) 
-            }
-
-            localStateOverrides = localStateOverrides + (item.id to current.copy(isSensitive = !current.isSensitive))
-            notifyItemChanged(pos)
-            onSensitiveClick(item)
-        }
-
+                    localStateOverrides = localStateOverrides + (item.id to current.copy(isSensitive = !current.isSensitive))
+                    notifyItemChanged(pos)
+                    onSensitiveClick(item)
+                }
 
                 btnDelete.setOnClickListener { 
                     val pos = bindingAdapterPosition

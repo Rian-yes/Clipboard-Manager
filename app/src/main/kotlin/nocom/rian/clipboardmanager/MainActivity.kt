@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
 import android.widget.AutoCompleteTextView
@@ -34,6 +35,9 @@ class MainActivity : AppCompatActivity() {
     
     private var shizukuSnackbar: Snackbar? = null
     private var previousClipCount = 0
+    
+    // Guard flag to prevent calculation feedback loops on large datasets (9,000+ items)
+    private var isDraggingScrollbar = false
 
     // =========================================================================
     // 1. Activity Lifecycle & System Overrides
@@ -142,24 +146,155 @@ class MainActivity : AppCompatActivity() {
             onRevealClick    = { id   -> viewModel.toggleRevealSensitive(id) },
             onEditClick      = { item -> editClipLauncher.launch(EditClipActivity.createIntent(this, item)) }
         )
-    
-        binding.clipboardRecycler.apply {
+        
+        binding.recyclerView.apply {
             adapter = clipboardAdapter
             layoutManager = LinearLayoutManager(this@MainActivity)
             setHasFixedSize(true)
-            itemAnimator = DefaultItemAnimator().apply { changeDuration = 300 }
-    
+            itemAnimator = DefaultItemAnimator()
+        
+            // Smart Scrolling Observer for Main App View
             clipboardAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-                override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) {
+                
+               override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) {
                     val lm = layoutManager as? LinearLayoutManager
-                    if (fromPosition == 0 && toPosition > fromPosition) {
-                        lm?.scrollToPositionWithOffset(0, 0)
+                    if (toPosition == 0 && lm?.findFirstCompletelyVisibleItemPosition() == 0) {
+                        post {
+                            lm.scrollToPositionWithOffset(0, 0) // Added lm?.
+                        }
+                    }
+                }
+                
+                override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
+                    val lm = layoutManager as? LinearLayoutManager
+                    if (positionStart == 0 && lm?.findFirstCompletelyVisibleItemPosition() == 0) {
+                        post {
+                            lm.scrollToPositionWithOffset(0, 0) // Added lm?.
+                        }
                     }
                 }
             })
         }
+
+        // Initialize position-mapped interactive fast scroll sync links
+        setupCustomScrollbar()
     }
 
+    private fun setupCustomScrollbar() {
+        val recycler = binding.recyclerView 
+        val thumb = binding.scrollbarThumb
+        val track = binding.scrollbarTrack
+        val dateBubbleCard = binding.scrollbarDateBubbleCard
+        val dateBubble = binding.scrollbarDateBubble
+    
+        recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                if (isDraggingScrollbar) return
+    
+                val lm = recyclerView.layoutManager as? LinearLayoutManager ?: return
+                val totalItemCount = lm.itemCount
+                if (totalItemCount == 0) {
+                    track.visibility = View.GONE
+                    return
+                }
+    
+                val firstVisiblePos = lm.findFirstVisibleItemPosition()
+                val lastVisiblePos = lm.findLastVisibleItemPosition()
+                val visibleItemCount = lastVisiblePos - firstVisiblePos + 1
+    
+                if (visibleItemCount < totalItemCount && firstVisiblePos != RecyclerView.NO_POSITION) {
+                    track.visibility = View.VISIBLE
+                    
+                    track.post {
+                        val maxTrackHeight = track.height - thumb.height
+                        if (maxTrackHeight > 0) {
+                            val denominator = (totalItemCount - visibleItemCount).coerceAtLeast(1)
+                            val scrollPercent = firstVisiblePos.toFloat() / denominator.toFloat()
+                            thumb.translationY = (scrollPercent * maxTrackHeight).coerceIn(0f, maxTrackHeight.toFloat())
+                        }
+                    }
+                } else {
+                    track.visibility = View.GONE
+                }
+            }
+        })
+    
+        track.setOnTouchListener { _, event ->
+            val lm = recycler.layoutManager as? LinearLayoutManager ?: return@setOnTouchListener false
+            val totalItemCount = lm.itemCount
+            if (totalItemCount == 0) return@setOnTouchListener false
+    
+            val maxTrackHeight = track.height - thumb.height
+            if (maxTrackHeight <= 0) return@setOnTouchListener false
+    
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    isDraggingScrollbar = true
+                    thumb.isPressed = true
+                    dateBubbleCard.visibility = View.VISIBLE
+                    handleScrollbarTouch(event.y, maxTrackHeight, lm, totalItemCount, thumb, dateBubbleCard, dateBubble)
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    handleScrollbarTouch(event.y, maxTrackHeight, lm, totalItemCount, thumb, dateBubbleCard, dateBubble)
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    isDraggingScrollbar = false
+                    thumb.isPressed = false
+                    dateBubbleCard.visibility = View.INVISIBLE
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+    
+    private fun handleScrollbarTouch(
+        touchY: Float, 
+        maxTrackHeight: Int, 
+        lm: LinearLayoutManager, 
+        totalItemCount: Int,
+        thumb: View,
+        dateBubbleCard: com.google.android.material.card.MaterialCardView,
+        dateBubble: android.widget.TextView
+    ) {
+        val recycler = binding.recyclerView
+        
+        var correctedY = touchY - (thumb.height / 2)
+        correctedY = correctedY.coerceIn(0f, maxTrackHeight.toFloat())
+        thumb.translationY = correctedY
+    
+        val scrollPercent = correctedY / maxTrackHeight.toFloat()
+        val targetPosition = (scrollPercent * totalItemCount).toInt().coerceIn(0, totalItemCount - 1)
+    
+        lm.scrollToPositionWithOffset(targetPosition, 0)
+    
+        // Pull item data matching the current target scroll index location
+        val item = clipboardAdapter.currentList.getOrNull(targetPosition)
+        if (item != null) {
+            val itemCalendar = java.util.Calendar.getInstance().apply { timeInMillis = item.timestamp }
+            val currentCalendar = java.util.Calendar.getInstance()
+            
+            // Dynamic condition validation checking if item year matches current device year
+            val formatPattern = if (itemCalendar.get(java.util.Calendar.YEAR) == currentCalendar.get(java.util.Calendar.YEAR)) {
+                "dd MMM"       // Current year -> e.g., "14 Oct"
+            } else {
+                "dd MMM yyyy"  // Different year -> e.g., "14 Oct 2025"
+            }
+            
+            dateBubble.text = java.text.SimpleDateFormat(formatPattern, java.util.Locale.getDefault()).format(java.util.Date(item.timestamp))
+        }
+    
+        // Anchor calculation logic positions the bubble card centered with the thumb
+        val bubbleHeight = dateBubbleCard.height
+        val targetBubbleY = correctedY + (thumb.height / 2f) - (bubbleHeight / 2f)
+        
+        // Constraint clamps avoid layout boundary overlapping at edges
+        val maxAllowedY = (recycler.height - bubbleHeight).toFloat()
+        dateBubbleCard.translationY = targetBubbleY.coerceIn(0f, maxAllowedY)
+    }
+    
     private fun setupClickListeners() {
         binding.btnAddClip.setOnClickListener {
             val text = binding.editClipInput.text.toString()
@@ -217,7 +352,6 @@ class MainActivity : AppCompatActivity() {
             androidx.core.content.ContextCompat.getColor(this, R.color.md_theme_onError)
         )
         
-        // Use GradientDrawable instead of ColorDrawable to support rounded corners
         val background = android.graphics.drawable.GradientDrawable().apply {
             shape = android.graphics.drawable.GradientDrawable.RECTANGLE
             setColor(androidx.core.content.ContextCompat.getColor(this@MainActivity, R.color.md_theme_error))
@@ -228,126 +362,110 @@ class MainActivity : AppCompatActivity() {
             androidx.recyclerview.widget.ItemTouchHelper.LEFT or
             androidx.recyclerview.widget.ItemTouchHelper.RIGHT
         ) {
-        override fun onMove(
-            recyclerView: RecyclerView,
-            viewHolder: RecyclerView.ViewHolder,
-            target: RecyclerView.ViewHolder
-        ): Boolean = false
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ): Boolean = false
 
-        override fun getSwipeDirs(
-            recyclerView: RecyclerView,
-            viewHolder: RecyclerView.ViewHolder
-        ): Int = if (viewModel.isSelectionMode.value) 0
-                 else super.getSwipeDirs(recyclerView, viewHolder)
+            override fun getSwipeDirs(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder
+            ): Int = if (viewModel.isSelectionMode.value) 0
+                     else super.getSwipeDirs(recyclerView, viewHolder)
 
-        override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-            val position = viewHolder.bindingAdapterPosition
-            if (position == RecyclerView.NO_POSITION) return
-            val item = clipboardAdapter.currentList.getOrNull(position) ?: return
-            val isImage = item.mimeType?.startsWith("image/") == true
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                val position = viewHolder.bindingAdapterPosition
+                if (position == RecyclerView.NO_POSITION) return
+                val item = clipboardAdapter.currentList.getOrNull(position) ?: return
+                val isImage = item.mimeType?.startsWith("image/") == true
 
-            // 1. Delete from DB only (removes it from UI immediately)
-            viewModel.delete(item, deleteFile = false)
+                viewModel.delete(item, deleteFile = false)
 
-            val snackbar = Snackbar.make(binding.root, "Clip deleted", Snackbar.LENGTH_LONG)
-            
-            // 2. Allow Undo for ALL clips now
-            snackbar.setAction("Undo") { viewModel.restoreClip(item) }
+                val snackbar = Snackbar.make(binding.root, "Clip deleted", Snackbar.LENGTH_LONG)
+                snackbar.setAction("Undo") { viewModel.restoreClip(item) }
 
-            // 3. Listen for the Snackbar disappearing
-            snackbar.addCallback(object : com.google.android.material.snackbar.Snackbar.Callback() {
-                override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
-                    // DISMISS_EVENT_ACTION means they clicked "Undo".
-                    // Any other event (timeout, swipe away, etc.) means deletion is final.
-                    if (event != DISMISS_EVENT_ACTION && isImage) {
-                        viewModel.deleteImageFile(item)
+                snackbar.addCallback(object : com.google.android.material.snackbar.Snackbar.Callback() {
+                    override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                        if (event != DISMISS_EVENT_ACTION && isImage) {
+                            viewModel.deleteImageFile(item)
+                        }
+                    }
+                })
+                
+                snackbar.show()
+            }
+
+            override fun onChildDraw(
+                c: android.graphics.Canvas,
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                dX: Float,
+                dY: Float,
+                actionState: Int,
+                isCurrentlyActive: Boolean
+            ) {
+                val itemView = viewHolder.itemView
+                val density = recyclerView.context.resources.displayMetrics.density
+                val marginHorizontal = (12 * density).toInt()
+                val marginVertical = (6 * density).toInt()
+                val cornerRadius = 16 * density
+                val cardPadding = (16 * density).toInt()
+
+                background.cornerRadius = cornerRadius
+
+                val cardHeight = itemView.height - (2 * marginVertical)
+                val iconTop = itemView.top + marginVertical + (cardHeight - deleteIcon.intrinsicHeight) / 2
+                val iconBottom = iconTop + deleteIcon.intrinsicHeight
+
+                when {
+                    dX > 0 -> { 
+                        val backgroundRight = (itemView.left + marginHorizontal + dX.toInt())
+                            .coerceAtMost(itemView.right - marginHorizontal)
+                        
+                        background.setBounds(
+                            itemView.left + marginHorizontal,
+                            itemView.top + marginVertical,
+                            backgroundRight,
+                            itemView.bottom - marginVertical
+                        )
+                        
+                        val iconLeft = itemView.left + marginHorizontal + cardPadding
+                        val iconRight = iconLeft + deleteIcon.intrinsicWidth
+                        deleteIcon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
+                    }
+                    dX < 0 -> { 
+                        val backgroundLeft = (itemView.right - marginHorizontal + dX.toInt())
+                            .coerceAtLeast(itemView.left + marginHorizontal)
+                            
+                        background.setBounds(
+                            backgroundLeft,
+                            itemView.top + marginVertical,
+                            itemView.right - marginHorizontal,
+                            itemView.bottom - marginVertical
+                        )
+                        
+                        val iconRight = itemView.right - marginHorizontal - cardPadding
+                        val iconLeft = iconRight - deleteIcon.intrinsicWidth
+                        deleteIcon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
+                    }
+                    else -> {
+                        background.setBounds(0, 0, 0, 0)
                     }
                 }
-            })
-            
-            snackbar.show()
+
+                background.draw(c)
+                if (Math.abs(dX) > (cardPadding + deleteIcon.intrinsicWidth)) {
+                    deleteIcon.draw(c)
+                }
+
+                super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
+            }
         }
 
-
-        override fun onChildDraw(
-            c: android.graphics.Canvas,
-            recyclerView: RecyclerView,
-            viewHolder: RecyclerView.ViewHolder,
-            dX: Float,
-            dY: Float,
-            actionState: Int,
-            isCurrentlyActive: Boolean
-        ) {
-            val itemView = viewHolder.itemView
-            
-            // Extract display density to perfectly map dp dimensions from item_clipboard.xml
-            val density = recyclerView.context.resources.displayMetrics.density
-            val marginHorizontal = (12 * density).toInt()
-            val marginVertical = (6 * density).toInt()
-            val cornerRadius = 16 * density
-            val cardPadding = (16 * density).toInt()
-
-            // Synchronize background curves with the MaterialCardView corner radius
-            background.cornerRadius = cornerRadius
-
-            // Center the delete icon perfectly within the inner card height profile
-            val cardHeight = itemView.height - (2 * marginVertical)
-            val iconTop = itemView.top + marginVertical + (cardHeight - deleteIcon.intrinsicHeight) / 2
-            val iconBottom = iconTop + deleteIcon.intrinsicHeight
-
-            when {
-                dX > 0 -> { // Swiping Right
-                    val backgroundRight = (itemView.left + marginHorizontal + dX.toInt())
-                        .coerceAtMost(itemView.right - marginHorizontal)
-                    
-                    background.setBounds(
-                        itemView.left + marginHorizontal,
-                        itemView.top + marginVertical,
-                        backgroundRight,
-                        itemView.bottom - marginVertical
-                    )
-                    
-                    // Align icon nicely with the internal layout padding boundary
-                    val iconLeft = itemView.left + marginHorizontal + cardPadding
-                    val iconRight = iconLeft + deleteIcon.intrinsicWidth
-                    deleteIcon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
-                }
-                dX < 0 -> { // Swiping Left
-                    val backgroundLeft = (itemView.right - marginHorizontal + dX.toInt())
-                        .coerceAtLeast(itemView.left + marginHorizontal)
-                        
-                    background.setBounds(
-                        backgroundLeft,
-                        itemView.top + marginVertical,
-                        itemView.right - marginHorizontal,
-                        itemView.bottom - marginVertical
-                    )
-                    
-                    val iconRight = itemView.right - marginHorizontal - cardPadding
-                    val iconLeft = iconRight - deleteIcon.intrinsicWidth
-                    deleteIcon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
-                }
-                else -> {
-                    background.setBounds(0, 0, 0, 0)
-                }
-            }
-
-            // Draw the shaped delete background color
-            background.draw(c)
-            
-            // Only draw the trash bin icon if the card has been swiped open far enough to prevent clipping
-            if (Math.abs(dX) > (cardPadding + deleteIcon.intrinsicWidth)) {
-                deleteIcon.draw(c)
-            }
-
-            super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
-        }
+        androidx.recyclerview.widget.ItemTouchHelper(swipeCallback)
+            .attachToRecyclerView(binding.recyclerView)
     }
-
-    androidx.recyclerview.widget.ItemTouchHelper(swipeCallback)
-        .attachToRecyclerView(binding.clipboardRecycler)
-}
-
 
     // =========================================================================
     // 3. LiveData & State Observers
@@ -359,14 +477,15 @@ class MainActivity : AppCompatActivity() {
                 val isNewItemAdded = list.size > previousClipCount
                 previousClipCount = list.size
     
+                // Ensure this ID matches the exact id given to your empty state layout in activity_main.xml
                 binding.emptyStateView.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
     
                 clipboardAdapter.submitList(list) {
-                    if (isNewItemAdded) binding.clipboardRecycler.scrollToPosition(0)
+                    if (isNewItemAdded) binding.recyclerView.scrollToPosition(0)
                 }
             }
         }
-    
+
         lifecycleScope.launch {
             viewModel.selectedIds.collect { ids ->
                 clipboardAdapter.setSelectedIds(ids)
@@ -453,7 +572,6 @@ class MainActivity : AppCompatActivity() {
                     Toast.LENGTH_LONG
                 ).show()
                 
-                // Redirect smoothly to your permission manager activity
                 val intent = Intent(this, PermissionActivity::class.java)
                 startActivity(intent)
             }
@@ -465,142 +583,134 @@ class MainActivity : AppCompatActivity() {
     // =========================================================================
 
     private fun showFilterBottomSheet() {
-    val dialog = com.google.android.material.bottomsheet.BottomSheetDialog(this)
-    val sheet = layoutInflater.inflate(R.layout.filter_bottom_sheet, null)
-    dialog.setContentView(sheet)
+        val dialog = com.google.android.material.bottomsheet.BottomSheetDialog(this)
+        val sheet = layoutInflater.inflate(R.layout.filter_bottom_sheet, null)
+        dialog.setContentView(sheet)
 
-    val searchGroup = sheet.findViewById<com.google.android.material.chip.ChipGroup>(R.id.sheetSearchFieldChipGroup)
-    val filterGroup = sheet.findViewById<com.google.android.material.chip.ChipGroup>(R.id.sheetFilterChipGroup)
-    val sortGroup   = sheet.findViewById<com.google.android.material.chip.ChipGroup>(R.id.sheetSortChipGroup)
-    val dropdown    = sheet.findViewById<AutoCompleteTextView>(R.id.dropdownAdvancedSearch)
+        val searchGroup = sheet.findViewById<com.google.android.material.chip.ChipGroup>(R.id.sheetSearchFieldChipGroup)
+        val filterGroup = sheet.findViewById<com.google.android.material.chip.ChipGroup>(R.id.sheetFilterChipGroup)
+        val sortGroup   = sheet.findViewById<com.google.android.material.chip.ChipGroup>(R.id.sheetSortChipGroup)
+        val dropdown    = sheet.findViewById<AutoCompleteTextView>(R.id.dropdownAdvancedSearch)
 
-    // Map your technical enum items to clean display strings
-    val advancedOptions = listOf(
-        "Package", "Window", "Activity", 
-        "Previous App", "Previous Package", "Previous Window", "Previous Activity"
-    )
-    val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, advancedOptions)
-    dropdown.setAdapter(adapter)
+        val advancedOptions = listOf(
+            "Package", "Window", "Activity", 
+            "Previous App", "Previous Package", "Previous Window", "Previous Activity"
+        )
+        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, advancedOptions)
+        dropdown.setAdapter(adapter)
 
-    // Clear chip selections if an advanced item is chosen from the dropdown
-    dropdown.setOnItemClickListener { _, _, position, _ ->
-        searchGroup.clearCheck() 
-        viewModel.setSearchField(when (advancedOptions[position]) {
-            "Package"           -> ClipboardViewModel.SearchField.PACKAGE
-            "Window"            -> ClipboardViewModel.SearchField.WINDOW
-            "Activity"          -> ClipboardViewModel.SearchField.ACTIVITY
-            "Previous App"      -> ClipboardViewModel.SearchField.PREVIOUS_APP_NAME
-            "Previous Package"  -> ClipboardViewModel.SearchField.PREVIOUS_PACKAGE
-            "Previous Window"   -> ClipboardViewModel.SearchField.PREVIOUS_WINDOW
-            "Previous Activity" -> ClipboardViewModel.SearchField.PREVIOUS_ACTIVITY
-            else                -> ClipboardViewModel.SearchField.ALL
-        })
-        updateFilterIndicator()
-    }
-
-    // Live-apply regular chip choices, and clear dropdown visual text if a primary chip is selected
-    searchGroup.setOnCheckedStateChangeListener { _, ids ->
-        if (ids.isNotEmpty()) {
-            dropdown.setText("Select advanced field...", false) // clear dropdown selection text
-            viewModel.setSearchField(when (ids.firstOrNull()) {
-                R.id.sheetChipSearchContent -> ClipboardViewModel.SearchField.CONTENT
-                R.id.sheetChipSearchApp     -> ClipboardViewModel.SearchField.APP_NAME
-                R.id.sheetChipSearchLabel   -> ClipboardViewModel.SearchField.LABEL
-                else                        -> ClipboardViewModel.SearchField.ALL
+        dropdown.setOnItemClickListener { _, _, position, _ ->
+            searchGroup.clearCheck() 
+            viewModel.setSearchField(when (advancedOptions[position]) {
+                "Package"           -> ClipboardViewModel.SearchField.PACKAGE
+                "Window"            -> ClipboardViewModel.SearchField.WINDOW
+                "Activity"          -> ClipboardViewModel.SearchField.ACTIVITY
+                "Previous App"      -> ClipboardViewModel.SearchField.PREVIOUS_APP_NAME
+                "Previous Package"  -> ClipboardViewModel.SearchField.PREVIOUS_PACKAGE
+                "Previous Window"   -> ClipboardViewModel.SearchField.PREVIOUS_WINDOW
+                "Previous Activity" -> ClipboardViewModel.SearchField.PREVIOUS_ACTIVITY
+                else                -> ClipboardViewModel.SearchField.ALL
             })
             updateFilterIndicator()
         }
-    }
 
-    // Pre-select layouts based on your existing core state structure
-    val currentSearchField = viewModel.searchField.value
-    when (currentSearchField) {
-        ClipboardViewModel.SearchField.CONTENT  -> sheet.findViewById<com.google.android.material.chip.Chip>(R.id.sheetChipSearchContent).isChecked = true
-        ClipboardViewModel.SearchField.APP_NAME -> sheet.findViewById<com.google.android.material.chip.Chip>(R.id.sheetChipSearchApp).isChecked = true
-        ClipboardViewModel.SearchField.LABEL    -> sheet.findViewById<com.google.android.material.chip.Chip>(R.id.sheetChipSearchLabel).isChecked = true
-        ClipboardViewModel.SearchField.ALL      -> sheet.findViewById<com.google.android.material.chip.Chip>(R.id.sheetChipSearchAll).isChecked = true
-        else -> {
-            // It's an advanced option, pre-fill text into the dropdown item text box instead
-            searchGroup.clearCheck()
-            dropdown.setText(when (currentSearchField) {
-                ClipboardViewModel.SearchField.PACKAGE           -> "Package"
-                ClipboardViewModel.SearchField.WINDOW            -> "Window"
-                ClipboardViewModel.SearchField.ACTIVITY          -> "Activity"
-                ClipboardViewModel.SearchField.PREVIOUS_APP_NAME -> "Previous App"
-                ClipboardViewModel.SearchField.PREVIOUS_PACKAGE  -> "Previous Package"
-                ClipboardViewModel.SearchField.PREVIOUS_WINDOW   -> "Previous Window"
-                ClipboardViewModel.SearchField.PREVIOUS_ACTIVITY -> "Previous Activity"
-                else                                             -> "Select advanced field..."
-            }, false)
+        searchGroup.setOnCheckedStateChangeListener { _, ids ->
+            if (ids.isNotEmpty()) {
+                dropdown.setText("Select advanced field...", false) 
+                viewModel.setSearchField(when (ids.firstOrNull()) {
+                    R.id.sheetChipSearchContent -> ClipboardViewModel.SearchField.CONTENT
+                    R.id.sheetChipSearchApp     -> ClipboardViewModel.SearchField.APP_NAME
+                    R.id.sheetChipSearchLabel   -> ClipboardViewModel.SearchField.LABEL
+                    else                        -> ClipboardViewModel.SearchField.ALL
+                })
+                updateFilterIndicator()
+            }
         }
-    }
 
-    // Map setup for standard filters row
-    sheet.findViewById<com.google.android.material.chip.Chip>(
-        when (viewModel.activeFilter.value) {
-            ClipboardViewModel.Filter.SENSITIVE -> R.id.sheetChipFilterSensitive
-            ClipboardViewModel.Filter.PINNED    -> R.id.sheetChipFilterPinned
-            ClipboardViewModel.Filter.FAVORITES -> R.id.sheetChipFilterFavorites
-            ClipboardViewModel.Filter.IMAGES    -> R.id.sheetChipFilterImages
-            ClipboardViewModel.Filter.LABELED   -> R.id.sheetChipFilterLabeled
-            else                                -> R.id.sheetChipFilterAll
+        val currentSearchField = viewModel.searchField.value
+        when (currentSearchField) {
+            ClipboardViewModel.SearchField.CONTENT  -> sheet.findViewById<com.google.android.material.chip.Chip>(R.id.sheetChipSearchContent).isChecked = true
+            ClipboardViewModel.SearchField.APP_NAME -> sheet.findViewById<com.google.android.material.chip.Chip>(R.id.sheetChipSearchApp).isChecked = true
+            ClipboardViewModel.SearchField.LABEL    -> sheet.findViewById<com.google.android.material.chip.Chip>(R.id.sheetChipSearchLabel).isChecked = true
+            ClipboardViewModel.SearchField.ALL      -> sheet.findViewById<com.google.android.material.chip.Chip>(R.id.sheetChipSearchAll).isChecked = true
+            else -> {
+                searchGroup.clearCheck()
+                dropdown.setText(when (currentSearchField) {
+                    ClipboardViewModel.SearchField.PACKAGE           -> "Package"
+                    ClipboardViewModel.SearchField.WINDOW            -> "Window"
+                    ClipboardViewModel.SearchField.ACTIVITY          -> "Activity"
+                    ClipboardViewModel.SearchField.PREVIOUS_APP_NAME -> "Previous App"
+                    ClipboardViewModel.SearchField.PREVIOUS_PACKAGE  -> "Previous Package"
+                    ClipboardViewModel.SearchField.PREVIOUS_WINDOW   -> "Previous Window"
+                    ClipboardViewModel.SearchField.PREVIOUS_ACTIVITY -> "Previous Activity"
+                    else                                             -> "Select advanced field..."
+                }, false)
+            }
         }
-    ).isChecked = true
 
-    // Map setup for sort metrics row
-    sheet.findViewById<com.google.android.material.chip.Chip>(
-        when (viewModel.sortOrder.value) {
-            ClipboardViewModel.SortOrder.OLDEST    -> R.id.sheetChipSortOldest
-            ClipboardViewModel.SortOrder.LAST_USED -> R.id.sheetChipSortLastUsed
-            ClipboardViewModel.SortOrder.ALPHA     -> R.id.sheetChipSortAlpha
-            ClipboardViewModel.SortOrder.ALPHA_APP -> R.id.sheetChipSortAlphaApp
-            ClipboardViewModel.SortOrder.TYPE      -> R.id.sheetChipSortType
-            else                                   -> R.id.sheetChipSortNewest
-        }
-    ).isChecked = true
+        sheet.findViewById<com.google.android.material.chip.Chip>(
+            when (viewModel.activeFilter.value) {
+                ClipboardViewModel.Filter.SENSITIVE -> R.id.sheetChipFilterSensitive
+                ClipboardViewModel.Filter.PINNED    -> R.id.sheetChipFilterPinned
+                ClipboardViewModel.Filter.FAVORITES -> R.id.sheetChipFilterFavorites
+                ClipboardViewModel.Filter.IMAGES    -> R.id.sheetChipFilterImages
+                ClipboardViewModel.Filter.LABELED   -> R.id.sheetChipFilterLabeled
+                else                                -> R.id.sheetChipFilterAll
+            }
+        ).isChecked = true
 
-    filterGroup.setOnCheckedStateChangeListener { _, ids ->
-        viewModel.setFilter(when (ids.firstOrNull()) {
-            R.id.sheetChipFilterSensitive -> ClipboardViewModel.Filter.SENSITIVE
-            R.id.sheetChipFilterPinned    -> ClipboardViewModel.Filter.PINNED
-            R.id.sheetChipFilterFavorites -> ClipboardViewModel.Filter.FAVORITES
-            R.id.sheetChipFilterImages    -> ClipboardViewModel.Filter.IMAGES
-            R.id.sheetChipFilterLabeled   -> ClipboardViewModel.Filter.LABELED
-            else                          -> ClipboardViewModel.Filter.ALL
-        })
-        updateFilterIndicator()
-    }
+        sheet.findViewById<com.google.android.material.chip.Chip>(
+            when (viewModel.sortOrder.value) {
+                ClipboardViewModel.SortOrder.OLDEST    -> R.id.sheetChipSortOldest
+                ClipboardViewModel.SortOrder.LAST_USED -> R.id.sheetChipSortLastUsed
+                ClipboardViewModel.SortOrder.ALPHA     -> R.id.sheetChipSortAlpha
+                ClipboardViewModel.SortOrder.ALPHA_APP -> R.id.sheetChipSortAlphaApp
+                ClipboardViewModel.SortOrder.TYPE      -> R.id.sheetChipSortType
+                else                                   -> R.id.sheetChipSortNewest
+            }
+        ).isChecked = true
 
-    sortGroup.setOnCheckedStateChangeListener { _, ids ->
-        viewModel.setSortOrder(when (ids.firstOrNull()) {
-            R.id.sheetChipSortOldest   -> ClipboardViewModel.SortOrder.OLDEST
-            R.id.sheetChipSortLastUsed -> ClipboardViewModel.SortOrder.LAST_USED
-            R.id.sheetChipSortAlpha    -> ClipboardViewModel.SortOrder.ALPHA
-            R.id.sheetChipSortAlphaApp -> ClipboardViewModel.SortOrder.ALPHA_APP
-            R.id.sheetChipSortType     -> ClipboardViewModel.SortOrder.TYPE
-            else                       -> ClipboardViewModel.SortOrder.NEWEST
-        })
-        updateFilterIndicator()
-    }
-
-    sheet.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnResetFilters)
-        .setOnClickListener {
-            viewModel.setFilter(ClipboardViewModel.Filter.ALL)
-            viewModel.setSearchField(ClipboardViewModel.SearchField.ALL)
-            viewModel.setSortOrder(ClipboardViewModel.SortOrder.NEWEST)
-            sheet.findViewById<com.google.android.material.chip.Chip>(R.id.sheetChipSearchAll).isChecked = true
-            sheet.findViewById<com.google.android.material.chip.Chip>(R.id.sheetChipFilterAll).isChecked = true
-            sheet.findViewById<com.google.android.material.chip.Chip>(R.id.sheetChipSortNewest).isChecked = true
-            dropdown.setText("Select advanced field...", false)
+        filterGroup.setOnCheckedStateChangeListener { _, ids ->
+            viewModel.setFilter(when (ids.firstOrNull()) {
+                R.id.sheetChipFilterSensitive -> ClipboardViewModel.Filter.SENSITIVE
+                R.id.sheetChipFilterPinned    -> ClipboardViewModel.Filter.PINNED
+                R.id.sheetChipFilterFavorites -> ClipboardViewModel.Filter.FAVORITES
+                R.id.sheetChipFilterImages    -> ClipboardViewModel.Filter.IMAGES
+                R.id.sheetChipFilterLabeled   -> ClipboardViewModel.Filter.LABELED
+                else                          -> ClipboardViewModel.Filter.ALL
+            })
             updateFilterIndicator()
         }
 
-    sheet.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnApplyFilters)
-        .setOnClickListener { dialog.dismiss() }
+        sortGroup.setOnCheckedStateChangeListener { _, ids ->
+            viewModel.setSortOrder(when (ids.firstOrNull()) {
+                R.id.sheetChipSortOldest   -> ClipboardViewModel.SortOrder.OLDEST
+                R.id.sheetChipSortLastUsed -> ClipboardViewModel.SortOrder.LAST_USED
+                R.id.sheetChipSortAlpha    -> ClipboardViewModel.SortOrder.ALPHA
+                R.id.sheetChipSortAlphaApp -> ClipboardViewModel.SortOrder.ALPHA_APP
+                R.id.sheetChipSortType     -> ClipboardViewModel.SortOrder.TYPE
+                else                       -> ClipboardViewModel.SortOrder.NEWEST
+            })
+            updateFilterIndicator()
+        }
 
-    dialog.show()
-}
+        sheet.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnResetFilters)
+            .setOnClickListener {
+                viewModel.setFilter(ClipboardViewModel.Filter.ALL)
+                viewModel.setSearchField(ClipboardViewModel.SearchField.ALL)
+                viewModel.setSortOrder(ClipboardViewModel.SortOrder.NEWEST)
+                sheet.findViewById<com.google.android.material.chip.Chip>(R.id.sheetChipSearchAll).isChecked = true
+                sheet.findViewById<com.google.android.material.chip.Chip>(R.id.sheetChipFilterAll).isChecked = true
+                sheet.findViewById<com.google.android.material.chip.Chip>(R.id.sheetChipSortNewest).isChecked = true
+                dropdown.setText("Select advanced field...", false)
+                updateFilterIndicator()
+            }
 
+        sheet.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnApplyFilters)
+            .setOnClickListener { dialog.dismiss() }
+
+        dialog.show()
+    }
 
     private fun showLabelDialog(item: ClipboardItem) {
         val input = android.widget.EditText(this).apply {

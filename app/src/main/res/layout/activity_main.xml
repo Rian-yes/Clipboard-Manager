@@ -54,7 +54,6 @@
                 android:textColorHint="@color/md_theme_onSurfaceVariant" />
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Filter indicator row -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -104,7 +103,7 @@
                 app:boxCornerRadiusTopStart="24dp"
                 app:boxCornerRadiusBottomStart="24dp"
                 app:boxCornerRadiusTopEnd="24dp"
-                app:boxCornerRadiusBottomEnd="24dp" >
+                app:boxCornerRadiusBottomEnd="24dp">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/edit_clip_input"
@@ -184,58 +183,85 @@
             </LinearLayout>
 
         </LinearLayout>
-
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1">
+            android:layout_height="match_parent">
 
             <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/clipboardRecycler"
+                android:id="@+id/recyclerView"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:clipToPadding="false"
-                android:paddingBottom="24dp"
-                android:scrollbars="vertical"
-                android:fastScrollEnabled="true"
-                app:fastScrollVerticalThumbDrawable="@drawable/scrollbar_thumb"
-                app:fastScrollVerticalTrackDrawable="@drawable/scrollbar_track"
-                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
-                
+                android:clipToPadding="false" />
+
             <LinearLayout
                 android:id="@+id/emptyStateView"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
                 android:orientation="vertical"
                 android:gravity="center"
-                android:visibility="gone"
-                android:padding="32dp">
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:src="@android:drawable/ic_menu_info_details"
+                        android:contentDescription="No clips"
+                    android:alpha="0.6"
+                    app:tint="@color/md_theme_onSurfaceVariant" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="📋"
-                    android:textSize="56sp"
-                    android:alpha="0.5" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Nothing copied yet"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"
-                    android:textColor="@color/md_theme_onSurface"
-                    android:layout_marginTop="16dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Copy text or images on your device and they will appear here"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:layout_marginTop="12dp"
+                    android:text="No clips found"
+                    android:textAppearance="?attr/textAppearanceBodyLarge"
                     android:textColor="@color/md_theme_onSurfaceVariant"
-                    android:gravity="center"
-                    android:layout_marginTop="8dp" />
+                    android:alpha="0.8" />
             </LinearLayout>
 
+
+            <FrameLayout
+                android:id="@+id/scrollbarTrack"
+                android:layout_width="32dp"
+                android:layout_height="match_parent"
+                android:layout_gravity="end"
+                android:background="@android:color/transparent"
+                android:visibility="gone">
+
+                <View
+                    android:id="@+id/scrollbarThumb"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:background="@drawable/scrollbar_thumb" />
+            </FrameLayout>
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/scrollbarDateBubbleCard"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end|top"
+                android:layout_marginEnd="40dp"
+                android:visibility="invisible"
+                app:cardCornerRadius="12dp"
+                app:cardBackgroundColor="?attr/colorPrimary"
+                app:cardElevation="6dp"
+                app:strokeWidth="0dp">
+
+                <TextView
+                    android:id="@+id/scrollbarDateBubble"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="6dp"
+                    android:textColor="?attr/colorOnPrimary"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:maxLines="1" />
+            </com.google.android.material.card.MaterialCardView>
+
         </FrameLayout>
+
+
     </LinearLayout>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
