@@ -61,10 +61,12 @@
 
         <activity
             android:name=".ui.OverlayActivity"
-            android:theme="@style/Theme.Material3.DayNight.Dialog"
-            android:excludeFromRecents="true"
+            android:exported="false"
+            android:theme="@style/Theme.ClipboardManager.OverlayDialog"
             android:launchMode="singleTop"
-            android:exported="false" />
+            android:excludeFromRecents="true"
+            android:taskAffinity=".overlay_task" />
+
 
         <service
             android:name=".service.ClipboardTileService"
