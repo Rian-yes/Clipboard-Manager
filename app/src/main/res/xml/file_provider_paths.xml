@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <files-path name="clipboard_images" path="clipboard_images/" />
+    <external-files-path name="clipboard_images" path="clipboard_images/" />
+    <files-path name="clipboard_images_internal" path="clipboard_images/" />
+    <external-files-path name="clipboard_media" path="clipboard_media/" />
 </paths>
