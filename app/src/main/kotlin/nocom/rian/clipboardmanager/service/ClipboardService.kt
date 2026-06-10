@@ -358,18 +358,24 @@ class ClipboardService : Service() {
                     pendingClipRead = true
                     return@launch
                 }
-
+    
                 val clipData = invokeClipboard("getPrimaryClip") as? ClipData
                 if (clipData == null || clipData.itemCount == 0) return@launch
-
+    
+                // Guard: skip any clipboard write that our own app triggered internally to prevent self-duplication
+//             // if (clipData.description.extras?.getBoolean("IS_INTERNAL_COPY", false) == true) {
+//             //     android.util.Log.d("ClipboardService", "Skipping self-originated internal copy event")
+//             //     return@launch
+//             // }
+    
                 val mimeType    = clipData.description.getMimeType(0) ?: "text/plain"
                 val isImage     = mimeType.startsWith("image/")
                 val currentTime = System.currentTimeMillis()
-
+    
                 val source     = getTopAppInfo()
                 val rawPackage = source.packageName
                 val packageKey = "${source.packageName}:${source.userId}"
-
+    
                 val lp = loadLogPrefs()
                 
                 val excludedPackages = loadExcludedPackages()
@@ -380,46 +386,45 @@ class ClipboardService : Service() {
                     android.util.Log.d("ClipboardService", "Skipping clip from excluded app/profile context: $packageKey")
                     return@launch
                 }
-
+    
                 val sensitivePackages = loadSensitivePackages()
                 val autoSensitive = sensitivePackages.any { entry ->
                     entry == packageKey || (!entry.contains(':') && entry == rawPackage)
                 }
-
-                // Check if the source app flagged this clip as sensitive via ClipDescription
-                // (used by password managers, authenticator apps, Tasker, etc.)
+    
                 val isSystemSensitive = lp.syncSensitiveFromClipboard &&
                         (clipData.description.extras?.getBoolean("android.content.extra.IS_SENSITIVE", false) == true)
-
+    
                 val isSensitive = autoSensitive || isSystemSensitive
-
+    
                 if (isSystemSensitive) {
                     android.util.Log.d("ClipboardService", "Clip flagged sensitive by source app")
                 }
-
+    
                 if (isImage) {
                     val uri       = clipData.getItemAt(0).uri ?: return@launch
                     val uriString = uri.toString()
-
+    
                     if (uriString == lastCopiedText && (currentTime - lastTimestamp) < 1500) {
                         android.util.Log.d("ClipboardService", "Skipped: rapid duplicate image URI")
                         return@launch
                     }
                     lastCopiedText = uriString
                     lastTimestamp  = currentTime
-
+    
                     val result = saveImageFromUri(uri, mimeType, currentTime) ?: run {
                         android.util.Log.e("ClipboardService", "Image save failed, aborting insert")
                         return@launch
                     }
+                    //Removed hash+package method to avoid duplication
+                   // val existing = repository.findByHashAndPackage(result.hash, source.packageName)
+                    val existing = repository.findByHash(result.hash)
 
-                    val existing = repository.findByHashAndPackage(result.hash, source.packageName)
                     if (existing != null) {
                         java.io.File(result.filePath).delete()
                         repository.refreshExistingClip(id = existing.id, timestamp = currentTime)
                         android.util.Log.d("ClipboardService", "Refreshed duplicate image id=${existing.id}")
                     } else {
-                        // ── was: repository.insert(ClipboardItem(clip = null, ...)) ──
                         var imageItem = ClipboardItem(
                             clip                 = null,
                             filePath             = result.filePath,
@@ -441,24 +446,23 @@ class ClipboardService : Service() {
                         android.util.Log.d("ClipboardService", "Inserted image from ${source.packageName}")
                         enforcePolicies(repository)
                     }
-
+    
                 } else {
                     val text = clipData.getItemAt(0)?.text?.toString()
                     if (text.isNullOrBlank()) return@launch
-
+    
                     if (text == lastCopiedText && (currentTime - lastTimestamp) < 1500) {
                         android.util.Log.d("ClipboardService", "Skipped: rapid duplicate text")
                         return@launch
                     }
                     lastCopiedText = text
                     lastTimestamp  = currentTime
-
+    
                     val existing = repository.findByContent(text)
                     if (existing != null) {
                         repository.refreshExistingClip(id = existing.id, timestamp = currentTime)
                         android.util.Log.d("ClipboardService", "Refreshed existing clip id=${existing.id}")
                     } else {
-                        // ── was: repository.insert(ClipboardItem(clip = text, ...)) ──
                         var textItem = ClipboardItem(
                             clip                 = text,
                             appName              = if (lp.logAppName)      source.appName          else null,
@@ -478,9 +482,9 @@ class ClipboardService : Service() {
                         enforcePolicies(repository)
                     }
                 }
-
+    
                 updateNotification()
-
+    
             } catch (e: Exception) {
                 android.util.Log.e("ClipboardService", "Save failed", e)
             }
