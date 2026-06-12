@@ -1,6 +1,7 @@
 package nocom.rian.clipboardmanager.ui
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -42,6 +43,28 @@ class OverlayActivity : AppCompatActivity() {
         setupRecyclerView()
         setupSearchAndDatabaseFlows()
     }
+    
+    // Add these lifecycle overrides inside OverlayActivity.kt
+
+    override fun onStart() {
+        super.onStart()
+        // Hide the floating trigger when this activity appears
+        sendTriggerVisibilityBroadcast(isVisible = false)
+    }
+    
+    override fun onStop() {
+        super.onStop()
+        // Restore the floating trigger when the user navigates away or closes this activity
+        sendTriggerVisibilityBroadcast(isVisible = true)
+    }
+    
+    private fun sendTriggerVisibilityBroadcast(isVisible: Boolean) {
+        val intent = Intent("nocom.rian.ACTION_SET_TRIGGER_VISIBILITY").apply {
+            putExtra("extra_is_visible", isVisible)
+            setPackage(packageName) // Ensures the broadcast stays secure within your app package
+        }
+        sendBroadcast(intent)
+    }
 
     private fun setupWindowLayout() {
         window.apply {
@@ -69,25 +92,33 @@ class OverlayActivity : AppCompatActivity() {
         )
     
         overlayAdapter = ClipboardAdapter(
-            onPinClick = { item -> viewModel.togglePin(item) },
-            onExpandClick = { id -> toggleExpansion(id) },
-            onLongClick = { item -> toggleExpansion(item.id) },
-            onDeleteClick = { item -> viewModel.delete(item, deleteFile = true) },
-            onCopyClick = { item ->
+            onPinClick       = { item -> viewModel.togglePin(item) },
+            onExpandClick    = { id   -> toggleExpansion(id) },
+            onLongClick      = { item -> toggleExpansion(item.id) },
+            onDeleteClick    = { item -> viewModel.delete(item, deleteFile = true) },
+            onCopyClick      = { item ->
                 viewModel.copyToClipboard(this, item)
                 val isImage = item.mimeType?.startsWith("image/") == true
                 Toast.makeText(
-                    this, 
-                    if (isImage) "Image copied to clipboard" else "Copied to clipboard", 
+                    this,
+                    if (isImage) "Image copied to clipboard" else "Copied to clipboard",
                     Toast.LENGTH_SHORT
                 ).show()
                 finish()
             },
-            onFavoriteClick = { item -> viewModel.toggleFavorite(item) },
+            onFavoriteClick  = { item -> viewModel.toggleFavorite(item) },
             onSensitiveClick = { item -> viewModel.toggleSensitive(item) },
             onLabelEditClick = { item -> showLabelDialog(item) },
-            onEditClick = { _ -> },
-            onRevealClick = { id -> toggleReveal(id) },
+            onRevealClick    = { id   -> toggleReveal(id) },
+            onEditClick      = { item ->
+                startActivity(
+                    android.content.Intent(this, EditClipActivity::class.java).apply {
+                        putExtra(EditClipActivity.EXTRA_ITEM_ID, item.id)
+                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                )
+                finish()
+            },
             initialConfig = displayConfig
         )
     
@@ -365,5 +396,23 @@ class OverlayActivity : AppCompatActivity() {
             .setOnClickListener { dialog.dismiss() }
 
         dialog.show()
+    }
+    
+    private fun showLabelDialog(item: ClipboardItem) {
+        val input = android.widget.EditText(this).apply {
+            setText(item.label)
+            hint = "Enter a label..."
+            setPadding(48, 24, 48, 24)
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Edit Label")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val label = input.text.toString().trim().ifBlank { null }
+                viewModel.updateLabel(item, label)
+            }
+            .setNegativeButton("Clear") { _, _ -> viewModel.updateLabel(item, null) }
+            .setNeutralButton("Cancel", null)
+            .show()
     }
 }

@@ -74,9 +74,12 @@ class ClipboardService : Service() {
 
     // region Companion Object
     companion object {
-    @Volatile var isRunning = false
-    const val ACTION_STOP_MONITORING = "nocom.rian.clipboardmanager.STOP_MONITORING"
-}
+        @Volatile var isRunning = false
+        const val ACTION_STOP_MONITORING = "nocom.rian.clipboardmanager.STOP_MONITORING"
+        const val ACTION_SET_TRIGGER_VISIBILITY = "nocom.rian.ACTION_SET_TRIGGER_VISIBILITY"
+        const val EXTRA_IS_VISIBLE = "extra_is_visible"
+    }
+    
     private val overlayToggleReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == "nocom.rian.ACTION_TOGGLE_OVERLAY") {
@@ -89,7 +92,17 @@ class ClipboardService : Service() {
             }
         }
     }
-
+    
+    private val overlayVisibilityReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ACTION_SET_TRIGGER_VISIBILITY) {
+                val isVisible = intent.getBooleanExtra(EXTRA_IS_VISIBLE, true)
+                // Use standard null-checks instead of .isInitialized
+                overlayWindowManager?.setTriggerVisibility(isVisible)
+            }
+        }
+    }
+    
     // region Asynchronous Callbacks & Broadcast Receivers
     private val prefChangeListener =
     android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -175,6 +188,12 @@ class ClipboardService : Service() {
         if (SettingsActivity.isOverlayFeatureAllowed(this)) {
             overlayWindowManager?.showFloatingTrigger()
         }
+        val visibilityFilter = IntentFilter(ACTION_SET_TRIGGER_VISIBILITY)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(overlayVisibilityReceiver, visibilityFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(overlayVisibilityReceiver, visibilityFilter)
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(overlayToggleReceiver, IntentFilter("nocom.rian.ACTION_TOGGLE_OVERLAY"), RECEIVER_NOT_EXPORTED)
@@ -191,47 +210,47 @@ class ClipboardService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    // Handle stop action from notification button
-    if (intent?.action == ACTION_STOP_MONITORING) {
-        getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putBoolean(SettingsActivity.KEY_MONITORING_ENABLED, false).commit()
-        stopSelf()
-        return START_NOT_STICKY
-    }
-
-    updateNotification()
-
-    if (clipboardService == null && Shizuku.pingBinder()) {
-        setupShizukuServices()
+        // Handle stop action from notification button
+        if (intent?.action == ACTION_STOP_MONITORING) {
+            getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putBoolean(SettingsActivity.KEY_MONITORING_ENABLED, false).commit()
+            stopSelf()
+            return START_NOT_STICKY
+        }
+    
+        updateNotification()
+    
+        if (clipboardService == null && Shizuku.pingBinder()) {
+            setupShizukuServices()
+        }
+        
+        try {
+            TileService.requestListeningState(
+                this,
+                ComponentName(this, ClipboardTileService::class.java)
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("ClipboardService", "Failed to update tile on startup", e)
+        }
+    
+        serviceScope.launch {
+            val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
+            val days = prefs.getInt(SettingsActivity.KEY_AUTO_DELETE_DAYS, 0)
+            if (days > 0) {
+                val cutoff = System.currentTimeMillis() - (days * 24L * 60 * 60 * 1000)
+                val db = AppDatabase.getDatabase(applicationContext)
+                val repository = ClipboardRepository(db.clipboardDao())
+                repository.deleteOlderThanWithImages(
+                    cutoffMs = cutoff,
+                    onEachDeleted = { item -> deleteImageFileIfNeeded(item) },
+                    database = db
+                )
+                android.util.Log.d("ClipboardService", "Auto-delete on start: safely removed clips and images older than $days days")
+            }
+        }
+        return START_STICKY
     }
     
-    try {
-        TileService.requestListeningState(
-            this,
-            ComponentName(this, ClipboardTileService::class.java)
-        )
-    } catch (e: Exception) {
-        android.util.Log.e("ClipboardService", "Failed to update tile on startup", e)
-    }
-
-    serviceScope.launch {
-        val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
-        val days = prefs.getInt(SettingsActivity.KEY_AUTO_DELETE_DAYS, 0)
-        if (days > 0) {
-            val cutoff = System.currentTimeMillis() - (days * 24L * 60 * 60 * 1000)
-            val db = AppDatabase.getDatabase(applicationContext)
-            val repository = ClipboardRepository(db.clipboardDao())
-            repository.deleteOlderThanWithImages(
-                cutoffMs = cutoff,
-                onEachDeleted = { item -> deleteImageFileIfNeeded(item) },
-                database = db
-            )
-            android.util.Log.d("ClipboardService", "Auto-delete on start: safely removed clips and images older than $days days")
-        }
-    }
-    return START_STICKY
-}
-
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onDestroy() {
@@ -248,6 +267,7 @@ class ClipboardService : Service() {
         teardownShizukuServices()
         try { unregisterReceiver(screenUnlockReceiver) } catch (_: Exception) {}
         try { unregisterReceiver(overlayToggleReceiver) } catch (e: Exception) {}
+        try { unregisterReceiver(overlayVisibilityReceiver) } catch (e: Exception) {}
         try {
             TileService.requestListeningState(
             this,

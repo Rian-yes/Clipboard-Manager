@@ -116,20 +116,20 @@ class MainActivity : AppCompatActivity() {
     // =========================================================================
     // 2. UI & Component Initialization
     // =========================================================================
-
+        
     private fun setupRecyclerView() {
         clipboardAdapter = ClipboardAdapter(
             onPinClick       = { item -> viewModel.togglePin(item) },
             onExpandClick    = { id   -> viewModel.toggleExpand(id) },
             onLongClick      = { item -> viewModel.toggleSelection(item) },
-            onDeleteClick    = { item -> 
+            onDeleteClick    = { item ->
                 val isImage = item.mimeType?.startsWith("image/") == true
-                
+    
                 viewModel.delete(item, deleteFile = false)
-                
+    
                 val snackbar = Snackbar.make(binding.root, "Clip deleted", Snackbar.LENGTH_LONG)
                 snackbar.setAction("Undo") { viewModel.restoreClip(item) }
-                
+    
                 snackbar.addCallback(object : com.google.android.material.snackbar.Snackbar.Callback() {
                     override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
                         if (event != DISMISS_EVENT_ACTION && isImage) {
@@ -144,39 +144,36 @@ class MainActivity : AppCompatActivity() {
             onSensitiveClick = { item -> viewModel.toggleSensitive(item) },
             onLabelEditClick = { item -> showLabelDialog(item) },
             onRevealClick    = { id   -> viewModel.toggleRevealSensitive(id) },
-            onEditClick      = { item -> editClipLauncher.launch(EditClipActivity.createIntent(this, item)) }
+            onEditClick      = { item ->
+                startActivity(
+                    Intent(this, EditClipActivity::class.java)
+                        .putExtra(EditClipActivity.EXTRA_ITEM_ID, item.id)
+                )
+            }
         )
-        
+    
         binding.recyclerView.apply {
             adapter = clipboardAdapter
             layoutManager = LinearLayoutManager(this@MainActivity)
             setHasFixedSize(true)
             itemAnimator = DefaultItemAnimator()
-        
-            // Smart Scrolling Observer for Main App View
+    
             clipboardAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-                
-               override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) {
+                override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) {
                     val lm = layoutManager as? LinearLayoutManager
                     if (toPosition == 0 && lm?.findFirstCompletelyVisibleItemPosition() == 0) {
-                        post {
-                            lm.scrollToPositionWithOffset(0, 0) // Added lm?.
-                        }
+                        post { lm.scrollToPositionWithOffset(0, 0) }
                     }
                 }
-                
                 override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
                     val lm = layoutManager as? LinearLayoutManager
                     if (positionStart == 0 && lm?.findFirstCompletelyVisibleItemPosition() == 0) {
-                        post {
-                            lm.scrollToPositionWithOffset(0, 0) // Added lm?.
-                        }
+                        post { lm.scrollToPositionWithOffset(0, 0) }
                     }
                 }
             })
         }
-
-        // Initialize position-mapped interactive fast scroll sync links
+    
         setupCustomScrollbar()
     }
 
@@ -868,29 +865,6 @@ class MainActivity : AppCompatActivity() {
     // 7. System Asynchronous Callback Launchers & Listeners
     // =========================================================================
 
-    private val editClipLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode != RESULT_OK) return@registerForActivityResult
-        val data = result.data ?: return@registerForActivityResult
-        val itemId = data.getIntExtra(EditClipActivity.EXTRA_ITEM_ID, -1)
-        if (itemId == -1) return@registerForActivityResult
-    
-        viewModel.updateClipById(
-            itemId                  = itemId,
-            newClip                 = data.getStringExtra(EditClipActivity.EXTRA_CLIP_TEXT),
-            newLabel                = data.getStringExtra(EditClipActivity.EXTRA_LABEL),
-            newAppName              = data.getStringExtra(EditClipActivity.EXTRA_APP_NAME),
-            newPackageName          = data.getStringExtra(EditClipActivity.EXTRA_PACKAGE_NAME),
-            newWindowLabel          = data.getStringExtra(EditClipActivity.EXTRA_WINDOW_LABEL),
-            newActivityName         = data.getStringExtra(EditClipActivity.EXTRA_ACTIVITY_NAME),
-            newPreviousAppName      = data.getStringExtra(EditClipActivity.EXTRA_PREVIOUS_APP_NAME),
-            newPreviousPackageName  = data.getStringExtra(EditClipActivity.EXTRA_PREVIOUS_PACKAGE_NAME),
-            newPreviousWindowLabel  = data.getStringExtra(EditClipActivity.EXTRA_PREVIOUS_WINDOW_LABEL),
-            newPreviousActivityName = data.getStringExtra(EditClipActivity.EXTRA_PREVIOUS_ACTIVITY_NAME)
-        )
-    }
-    
     private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
         try {
             if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
