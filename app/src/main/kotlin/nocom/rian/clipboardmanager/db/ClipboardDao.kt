@@ -16,7 +16,10 @@ interface ClipboardDao {
 
     @Query("SELECT COUNT(*) FROM clipboardmanager")
     suspend fun getTotalClipCount(): Int
-
+    
+    @Query("SELECT * FROM clipboardmanager WHERE id = :id LIMIT 1")
+    suspend fun findById(id: Int): ClipboardItem?
+    
     @Query("SELECT * FROM clipboardmanager ORDER BY is_pinned DESC, timestamp DESC")
     fun getAllClips(): Flow<List<ClipboardItem>>
 

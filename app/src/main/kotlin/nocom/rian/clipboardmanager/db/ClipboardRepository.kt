@@ -13,6 +13,8 @@ class ClipboardRepository(private val clipboardDao: ClipboardDao) {
     suspend fun delete(item: ClipboardItem) = clipboardDao.delete(item)
     suspend fun count(): Int = clipboardDao.getTotalClipCount()
 
+    suspend fun findById(id: Int): ClipboardItem? = clipboardDao.findById(id)
+   
     suspend fun findByContent(text: String): ClipboardItem? = clipboardDao.findByContent(text)
     
     suspend fun findByHash(hash: String): ClipboardItem? = clipboardDao.findByHash(hash)

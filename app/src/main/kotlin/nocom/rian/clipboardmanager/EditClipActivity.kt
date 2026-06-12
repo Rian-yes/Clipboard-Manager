@@ -1,63 +1,34 @@
 package nocom.rian.clipboardmanager
 
-import nocom.rian.clipboardmanager.R
-import android.content.Context
-import android.content.Intent
 import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.Toast
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import nocom.rian.clipboardmanager.databinding.ActivityEditClipBinding
-import nocom.rian.clipboardmanager.db.ClipboardItem
+import nocom.rian.clipboardmanager.ui.EditClipViewModel
 import java.io.File
 
 class EditClipActivity : AppCompatActivity() {
 
-    // ==========================================
-    // Companion Object (Intent Constants & Factory)
-    // ==========================================
     companion object {
-        const val EXTRA_ITEM_ID       = "extra_item_id"
-        const val EXTRA_IS_IMAGE      = "extra_is_image"
-        const val EXTRA_CLIP_TEXT     = "extra_clip_text"
-        const val EXTRA_FILE_PATH     = "extra_file_path"
-        const val EXTRA_LABEL         = "extra_label"
-        const val EXTRA_APP_NAME      = "extra_app_name"
-        const val EXTRA_PACKAGE_NAME  = "extra_package_name"
-        const val EXTRA_WINDOW_LABEL  = "extra_window_label"
-        const val EXTRA_ACTIVITY_NAME = "extra_activity_name"
-        const val EXTRA_PREVIOUS_APP_NAME      = "extra_previous_app_name"
-        const val EXTRA_PREVIOUS_PACKAGE_NAME  = "extra_previous_package_name"
-        const val EXTRA_PREVIOUS_WINDOW_LABEL  = "extra_previous_window_label"
-        const val EXTRA_PREVIOUS_ACTIVITY_NAME = "extra_previous_activity_name"
-
-        fun createIntent(context: Context, item: ClipboardItem): Intent =
-            Intent(context, EditClipActivity::class.java).apply {
-                putExtra(EXTRA_ITEM_ID,       item.id)
-                putExtra(EXTRA_IS_IMAGE,      item.mimeType?.startsWith("image/") == true)
-                putExtra(EXTRA_CLIP_TEXT,     item.clip)
-                putExtra(EXTRA_FILE_PATH,     item.filePath)
-                putExtra(EXTRA_LABEL,         item.label)
-                putExtra(EXTRA_APP_NAME,      item.appName)
-                putExtra(EXTRA_PACKAGE_NAME,  item.packageName)
-                putExtra(EXTRA_WINDOW_LABEL,  item.windowLabel)
-                putExtra(EXTRA_ACTIVITY_NAME, item.activityName)
-                putExtra(EXTRA_PREVIOUS_APP_NAME,      item.previousAppName)
-                putExtra(EXTRA_PREVIOUS_PACKAGE_NAME,  item.previousPackageName)
-                putExtra(EXTRA_PREVIOUS_WINDOW_LABEL,  item.previousWindowLabel)
-                putExtra(EXTRA_PREVIOUS_ACTIVITY_NAME, item.previousActivityName)
-            }
+        const val EXTRA_ITEM_ID = "extra_item_id"
     }
 
     private lateinit var binding: ActivityEditClipBinding
+    private val viewModel: EditClipViewModel by viewModels()
+
     private var isAdvancedVisible = false
     private var isImage = false
+    private var itemId: Int = -1
 
-    // ==========================================
-    // Android Activity Lifecycle
-    // ==========================================
+    // =========================================================================
+    // Lifecycle
+    // =========================================================================
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityEditClipBinding.inflate(layoutInflater)
@@ -66,15 +37,22 @@ class EditClipActivity : AppCompatActivity() {
         setSupportActionBar(binding.editToolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
-        isImage = intent.getBooleanExtra(EXTRA_IS_IMAGE, false)
+        itemId = intent.getIntExtra(EXTRA_ITEM_ID, -1)
+        if (itemId == -1) {
+            Toast.makeText(this, "Invalid clip ID", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
 
-        loadFields()
         setupAdvancedToggle()
+        observeViewModel()
+        viewModel.loadItem(itemId)
     }
 
-    // ==========================================
-    // Menu & Navigation Hooks
-    // ==========================================
+    // =========================================================================
+    // Menu & Navigation
+    // =========================================================================
+
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_edit_clip, menu)
         return true
@@ -92,43 +70,65 @@ class EditClipActivity : AppCompatActivity() {
         return true
     }
 
-    // ==========================================
-    // Core Tasks & Operations
-    // ==========================================
-    private fun loadFields() {
+    // =========================================================================
+    // ViewModel observation
+    // =========================================================================
+
+    private fun observeViewModel() {
+        viewModel.item.observe(this) { item ->
+            if (item == null) {
+                Toast.makeText(this, "Clip not found", Toast.LENGTH_SHORT).show()
+                finish()
+                return@observe
+            }
+            isImage = item.mimeType?.startsWith("image/") == true
+            loadFields(item)
+        }
+
+        viewModel.saveComplete.observe(this) { success ->
+            if (success) {
+                finish()
+            } else {
+                Toast.makeText(this, "Failed to save — clip may have been deleted", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // =========================================================================
+    // UI population
+    // =========================================================================
+
+    private fun loadFields(item: nocom.rian.clipboardmanager.db.ClipboardItem) {
         if (isImage) {
             binding.imagePreviewCard.visibility = View.VISIBLE
             binding.contentCard.visibility = View.GONE
 
-            val filePath = intent.getStringExtra(EXTRA_FILE_PATH)
+            val filePath = item.filePath
             if (!filePath.isNullOrBlank()) {
                 val file = File(filePath)
                 if (file.exists()) {
-                    // Sample down to avoid OOM on large images
                     val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeFile(filePath, opts)
                     opts.inSampleSize = calculateInSampleSize(opts, 1200, 1200)
                     opts.inJustDecodeBounds = false
-                    binding.editImagePreview.setImageBitmap(
-                        BitmapFactory.decodeFile(filePath, opts)
-                    )
+                    binding.editImagePreview.setImageBitmap(BitmapFactory.decodeFile(filePath, opts))
                 }
             }
         } else {
             binding.imagePreviewCard.visibility = View.GONE
             binding.contentCard.visibility = View.VISIBLE
-            binding.editClipContent.setText(intent.getStringExtra(EXTRA_CLIP_TEXT) ?: "")
+            binding.editClipContent.setText(item.clip ?: "")
         }
 
-        binding.editLabel.setText(intent.getStringExtra(EXTRA_LABEL) ?: "")
-        binding.editAppName.setText(intent.getStringExtra(EXTRA_APP_NAME) ?: "")
-        binding.editPackageName.setText(intent.getStringExtra(EXTRA_PACKAGE_NAME) ?: "")
-        binding.editWindowLabel.setText(intent.getStringExtra(EXTRA_WINDOW_LABEL) ?: "")
-        binding.editActivityName.setText(intent.getStringExtra(EXTRA_ACTIVITY_NAME) ?: "")
-        binding.editPreviousAppName.setText(intent.getStringExtra(EXTRA_PREVIOUS_APP_NAME) ?: "")
-        binding.editPreviousPackageName.setText(intent.getStringExtra(EXTRA_PREVIOUS_PACKAGE_NAME) ?: "")
-        binding.editPreviousWindowLabel.setText(intent.getStringExtra(EXTRA_PREVIOUS_WINDOW_LABEL) ?: "")
-        binding.editPreviousActivityName.setText(intent.getStringExtra(EXTRA_PREVIOUS_ACTIVITY_NAME) ?: "")
+        binding.editLabel.setText(item.label ?: "")
+        binding.editAppName.setText(item.appName ?: "")
+        binding.editPackageName.setText(item.packageName ?: "")
+        binding.editWindowLabel.setText(item.windowLabel ?: "")
+        binding.editActivityName.setText(item.activityName ?: "")
+        binding.editPreviousAppName.setText(item.previousAppName ?: "")
+        binding.editPreviousPackageName.setText(item.previousPackageName ?: "")
+        binding.editPreviousWindowLabel.setText(item.previousWindowLabel ?: "")
+        binding.editPreviousActivityName.setText(item.previousActivityName ?: "")
     }
 
     private fun setupAdvancedToggle() {
@@ -146,8 +146,11 @@ class EditClipActivity : AppCompatActivity() {
         }
     }
 
+    // =========================================================================
+    // Save
+    // =========================================================================
+
     private fun saveAndReturn() {
-        // Validate: text clips must not be blank
         if (!isImage) {
             val content = binding.editClipContent.text?.toString() ?: ""
             if (content.isBlank()) {
@@ -156,39 +159,25 @@ class EditClipActivity : AppCompatActivity() {
             }
         }
 
-        val result = Intent().apply {
-            putExtra(EXTRA_ITEM_ID, intent.getIntExtra(EXTRA_ITEM_ID, -1))
-            // For image clips, clip text stays null
-            if (!isImage) {
-                putExtra(EXTRA_CLIP_TEXT,
-                    binding.editClipContent.text?.toString()?.ifBlank { null })
-            }
-            putExtra(EXTRA_LABEL,
-                binding.editLabel.text?.toString()?.ifBlank { null })
-            putExtra(EXTRA_APP_NAME,
-                binding.editAppName.text?.toString()?.ifBlank { null })
-            putExtra(EXTRA_PACKAGE_NAME,
-                binding.editPackageName.text?.toString()?.ifBlank { null })
-            putExtra(EXTRA_WINDOW_LABEL,
-                binding.editWindowLabel.text?.toString()?.ifBlank { null })
-            putExtra(EXTRA_ACTIVITY_NAME,
-                binding.editActivityName.text?.toString()?.ifBlank { null })
-            putExtra(EXTRA_PREVIOUS_APP_NAME,
-                binding.editPreviousAppName.text?.toString()?.ifBlank { null })
-            putExtra(EXTRA_PREVIOUS_PACKAGE_NAME,
-                binding.editPreviousPackageName.text?.toString()?.ifBlank { null })
-            putExtra(EXTRA_PREVIOUS_WINDOW_LABEL,
-                binding.editPreviousWindowLabel.text?.toString()?.ifBlank { null })
-            putExtra(EXTRA_PREVIOUS_ACTIVITY_NAME,
-                binding.editPreviousActivityName.text?.toString()?.ifBlank { null })    
-        }
-        setResult(RESULT_OK, result)
-        finish()
+        viewModel.saveItem(
+            id                    = itemId,
+            newClip               = if (!isImage) binding.editClipContent.text?.toString()?.ifBlank { null } else null,
+            newLabel              = binding.editLabel.text?.toString()?.ifBlank { null },
+            newAppName            = binding.editAppName.text?.toString()?.ifBlank { null },
+            newPackageName        = binding.editPackageName.text?.toString()?.ifBlank { null },
+            newWindowLabel        = binding.editWindowLabel.text?.toString()?.ifBlank { null },
+            newActivityName       = binding.editActivityName.text?.toString()?.ifBlank { null },
+            newPreviousAppName    = binding.editPreviousAppName.text?.toString()?.ifBlank { null },
+            newPreviousPackageName= binding.editPreviousPackageName.text?.toString()?.ifBlank { null },
+            newPreviousWindowLabel= binding.editPreviousWindowLabel.text?.toString()?.ifBlank { null },
+            newPreviousActivityName = binding.editPreviousActivityName.text?.toString()?.ifBlank { null }
+        )
     }
 
-    // ==========================================
-    // Low-Level Private Helpers
-    // ==========================================
+    // =========================================================================
+    // Helpers
+    // =========================================================================
+
     private fun calculateInSampleSize(
         options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int
     ): Int {
