@@ -31,7 +31,7 @@ class PermissionActivity : AppCompatActivity() {
             binding.statusText.text = "Shizuku service disconnected."
             binding.statusIcon.setImageResource(android.R.drawable.stat_notify_error)
             binding.statusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
-                getColor(android.R.color.holo_red_dark)
+                getColor(R.color.color_status_error)
             )
         }
     }
@@ -243,12 +243,12 @@ class PermissionActivity : AppCompatActivity() {
         if (isConnected) {
             binding.statusIcon.setImageResource(android.R.drawable.checkbox_on_background)
             binding.statusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
-                getColor(android.R.color.holo_green_dark)
+                getColor(R.color.color_status_success)
             )
         } else {
             binding.statusIcon.setImageResource(android.R.drawable.ic_dialog_alert)
             binding.statusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
-                getColor(android.R.color.holo_red_light)
+                getColor(R.color.color_status_error)
             )
         }
     }
@@ -257,7 +257,7 @@ class PermissionActivity : AppCompatActivity() {
         if (isGranted) {
             binding.notifStatusIcon.setImageResource(android.R.drawable.checkbox_on_background)
             binding.notifStatusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
-                getColor(android.R.color.holo_green_dark)
+                getColor(R.color.color_status_success)
             )
             binding.notifStatusText.text = "Granted"
             binding.btnGrantNotification.isEnabled = false
@@ -265,7 +265,7 @@ class PermissionActivity : AppCompatActivity() {
         } else {
             binding.notifStatusIcon.setImageResource(android.R.drawable.ic_dialog_alert)
             binding.notifStatusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
-                getColor(android.R.color.holo_red_light)
+                getColor(R.color.color_status_error)
             )
             binding.notifStatusText.text = "Not granted — service notifications will be silent"
             binding.btnGrantNotification.isEnabled = true
@@ -277,7 +277,7 @@ class PermissionActivity : AppCompatActivity() {
         if (isExempt) {
             binding.batteryStatusIcon.setImageResource(android.R.drawable.checkbox_on_background)
             binding.batteryStatusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
-                getColor(android.R.color.holo_green_dark)
+                getColor(R.color.color_status_success)
             )
             binding.batteryStatusText.text = "Exempt — service will not be killed in background"
             binding.btnExemptBattery.isEnabled = false
@@ -285,7 +285,7 @@ class PermissionActivity : AppCompatActivity() {
         } else {
             binding.batteryStatusIcon.setImageResource(android.R.drawable.ic_dialog_alert)
             binding.batteryStatusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
-                getColor(android.R.color.holo_orange_light)
+                getColor(R.color.color_status_warning)
             )
             binding.batteryStatusText.text = "Not exempt — OS may kill the monitoring service"
             binding.btnExemptBattery.isEnabled = true
@@ -306,7 +306,7 @@ class PermissionActivity : AppCompatActivity() {
         if (isGranted) {
             binding.overlayStatusIcon.setImageResource(android.R.drawable.checkbox_on_background)
             binding.overlayStatusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
-                getColor(android.R.color.holo_green_dark)
+                getColor(R.color.color_status_success)
             )
             binding.overlayStatusText.text = "Granted — Floating search layout fully operational"
             binding.btnGrantOverlay.isEnabled = false
@@ -314,7 +314,7 @@ class PermissionActivity : AppCompatActivity() {
         } else {
             binding.overlayStatusIcon.setImageResource(android.R.drawable.ic_dialog_alert)
             binding.overlayStatusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
-                getColor(android.R.color.holo_red_light)
+                getColor(R.color.color_status_error)
             )
             binding.overlayStatusText.text = "Not granted — floating search menu remains disabled"
             binding.btnGrantOverlay.isEnabled = true
