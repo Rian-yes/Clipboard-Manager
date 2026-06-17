@@ -2,7 +2,7 @@
 <resources>
     <!-- All color references resolve to values-night/colors.xml automatically. -->
     <style
-            name="Theme.ClipboardManager"
+            name="Base.Theme.ClipboardManager"
             parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/md_theme_primary</item>
         <item name="colorOnPrimary">@color/md_theme_onPrimary</item>
@@ -41,4 +41,6 @@
         <!-- False = light icons for dark backgrounds -->
         <item name="android:windowLightStatusBar">false</item>
     </style>
+
+    <style name="Theme.ClipboardManager" parent="Base.Theme.ClipboardManager" />
 </resources>
