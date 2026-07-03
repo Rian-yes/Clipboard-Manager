@@ -203,6 +203,15 @@
                     app:tint="@color/md_theme_onSurfaceVariant" />
 
                 <ImageView
+                    android:id="@+id/shareIcon"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:padding="10dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_share"
+                    app:tint="@color/md_theme_onSurfaceVariant" />
+
+                <ImageView
                     android:id="@+id/pinIcon"
                     android:layout_width="40dp"
                     android:layout_height="40dp"

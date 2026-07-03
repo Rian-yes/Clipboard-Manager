@@ -23,7 +23,8 @@ data class ClipDisplayConfig(
     val showPrevPackageName: Boolean = true,
     val showPrevWindowLabel: Boolean = true,
     val showPrevActivityName: Boolean = true,
-    val showQuickCopy: Boolean = true 
+    val showQuickCopy: Boolean = true,
+    val showShare: Boolean = true
 )
 
 class ClipboardAdapter(
@@ -37,6 +38,7 @@ class ClipboardAdapter(
     private val onLabelEditClick: (ClipboardItem) -> Unit,
     private val onRevealClick: (Int) -> Unit,
     private val onEditClick: (ClipboardItem) -> Unit,
+    private val onShareClick: (ClipboardItem) -> Unit,
     private val initialConfig: ClipDisplayConfig = ClipDisplayConfig()
 ) : ListAdapter<ClipboardItem, ClipboardAdapter.ClipboardViewHolder>(DiffCallback) {
 
@@ -273,6 +275,12 @@ class ClipboardAdapter(
                     binding.quickCopy.visibility = View.GONE
                 }
 
+                if (displayConfig.showShare && !isSensitiveHidden) {
+                    binding.shareIcon.visibility = View.VISIBLE
+                } else {
+                    binding.shareIcon.visibility = View.GONE
+                }
+
                 val extraText = buildString {
                     if (displayConfig.showTechnicalDetails) {
                         append("ID: ${item.id}\n")
@@ -452,6 +460,11 @@ class ClipboardAdapter(
                 quickCopy.setOnClickListener { 
                     val pos = bindingAdapterPosition
                     if (pos != RecyclerView.NO_POSITION) onCopyClick(getItem(pos))
+                }
+
+                shareIcon.setOnClickListener {
+                    val pos = bindingAdapterPosition
+                    if (pos != RecyclerView.NO_POSITION) onShareClick(getItem(pos))
                 }
         
                 pinIcon.setOnClickListener {

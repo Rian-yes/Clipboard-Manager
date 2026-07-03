@@ -388,3 +388,30 @@ class ClipboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 }
+
+fun shareClip(context: android.content.Context, item: nocom.rian.clipboardmanager.db.ClipboardItem) {
+    val sendIntent = android.content.Intent().apply {
+        action = android.content.Intent.ACTION_SEND
+        if (item.mimeType?.startsWith("image/") == true) {
+            val file = java.io.File(item.filePath ?: return)
+            if (!file.exists()) {
+                android.widget.Toast.makeText(context, "Image file not found", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", file
+            )
+            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+            type = item.mimeType
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        } else {
+            putExtra(android.content.Intent.EXTRA_TEXT, item.clip)
+            type = "text/plain"
+        }
+    }
+    val shareIntent = android.content.Intent.createChooser(sendIntent, "Share Clip")
+    if (context !is android.app.Activity) {
+        shareIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    context.startActivity(shareIntent)
+}

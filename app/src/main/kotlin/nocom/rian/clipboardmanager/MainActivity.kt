@@ -149,7 +149,8 @@ class MainActivity : AppCompatActivity() {
                     Intent(this, EditClipActivity::class.java)
                         .putExtra(EditClipActivity.EXTRA_ITEM_ID, item.id)
                 )
-            }
+            },
+            onShareClick     = { item -> nocom.rian.clipboardmanager.ui.shareClip(this, item) }
         )
     
         binding.recyclerView.apply {

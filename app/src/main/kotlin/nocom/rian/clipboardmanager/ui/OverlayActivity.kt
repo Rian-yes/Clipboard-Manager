@@ -119,6 +119,10 @@ class OverlayActivity : AppCompatActivity() {
                 )
                 finish()
             },
+            onShareClick     = { item ->
+                shareClip(this, item)
+                finish()
+            },
             initialConfig = displayConfig
         )
     
