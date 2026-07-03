@@ -111,27 +111,6 @@ android {
             resources.merges.add("nativeMain/default/manifest")
         }
     }
-    
-    configurations.all {
-        resolutionStrategy {
-            force("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
-            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22")
-            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22")
-    
-            force("androidx.collection:collection:1.4.2")
-            force("androidx.annotation:annotation:1.8.1")
-            force("androidx.core:core-ktx:1.8.0")
-            
-            force("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4") 
-            force("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")
-            force("androidx.activity:activity-ktx:1.9.1")
-            force("androidx.collection:collection-ktx:1.4.2")
-
-            // Forced versions for new expansion-related libraries
-            force("androidx.recyclerview:recyclerview:1.3.2")
-            force("androidx.transition:transition-ktx:1.4.1")
-        }
-    }
 }
 
 tasks.withType<JavaCompile> {
