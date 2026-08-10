@@ -500,6 +500,29 @@ class ClipboardService : Service() {
                         repository.insert(textItem)
                         android.util.Log.d("ClipboardService", "Inserted text clip from ${source.packageName}")
                         enforcePolicies(repository)
+
+                        // Send broadcast intent if enabled in settings
+                        try {
+                            val prefs = getSharedPreferences("clipboard_settings", Context.MODE_PRIVATE)
+                            val enabled = prefs.getBoolean("intent_sender_enabled", false)
+                            val action = prefs.getString("intent_sender_action", "") ?: ""
+                            val extraKey = prefs.getString("intent_sender_extra_key", "") ?: ""
+                            val pkg = prefs.getString("intent_sender_package", "") ?: ""
+                            if (enabled && action.isNotEmpty() && extraKey.isNotEmpty()) {
+                                val intent = Intent(action).apply {
+                                    putExtra(extraKey, text)
+                                    if (pkg.isNotEmpty()) {
+                                        setPackage(pkg)
+                                    }
+                                    addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+                                }
+                                sendBroadcast(intent)
+                                android.util.Log.d("ClipboardService", "Sent broadcast intent: action=$action, extraKey=$extraKey, package=$pkg")
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("ClipboardService", "Failed to send broadcast intent", e)
+                        }
+                        enforcePolicies(repository)
                     }
                 }
     

@@ -1,6 +1,7 @@
 package nocom.rian.clipboardmanager
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Typeface
 import android.os.Bundle
@@ -37,8 +38,15 @@ class AdvancedActivity : AppCompatActivity() {
     // Track views dynamically created inside the ViewPager pages
     private var sqlView: View? = null
     private var rulesView: View? = null
+    private var intentView: View? = null
     private var rulesAdapter: RulesAdapter? = null
 
+    companion object {
+        const val KEY_INTENT_SENDER_ENABLED = "intent_sender_enabled"
+        const val KEY_INTENT_SENDER_ACTION = "intent_sender_action"
+        const val KEY_INTENT_SENDER_PACKAGE = "intent_sender_package"
+        const val KEY_INTENT_SENDER_EXTRA_KEY = "intent_sender_extra_key"
+    }
     // =========================================================================
     // Lifecycle
     // =========================================================================
@@ -58,7 +66,11 @@ class AdvancedActivity : AppCompatActivity() {
 
         // Bind TabLayout and ViewPager2 tabs together
         TabLayoutMediator(binding.advancedTabs, binding.advancedViewPager) { tab, position ->
-            tab.text = if (position == 0) "Automation Rules" else "SQL Console"
+            tab.text = when (position) {
+                0 -> "Automation Rules"
+                1 -> "Intent Sender"
+                else -> "SQL Console"
+            }
         }.attach()
     }
 
@@ -72,28 +84,144 @@ class AdvancedActivity : AppCompatActivity() {
     // =========================================================================
 
     private inner class AdvancedPagerAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
-        override fun getItemCount(): Int = 2
+        override fun getItemCount(): Int = 3
         override fun getItemViewType(position: Int): Int = position
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
             val inflater = LayoutInflater.from(parent.context)
-            return if (viewType == 0) {
-                val view = inflater.inflate(R.layout.layout_advanced_rules, parent, false)
-                rulesView = view
-                RulesViewHolder(view)
-            } else {
-                val view = inflater.inflate(R.layout.layout_advanced_sql, parent, false)
-                sqlView = view
-                SqlViewHolder(view)
+            val view = when (viewType) {
+                0 -> {
+                    val v = inflater.inflate(R.layout.layout_advanced_rules, parent, false)
+                    rulesView = v
+                    RulesViewHolder(v)
+                }
+                1 -> {
+                    val v = inflater.inflate(R.layout.layout_advanced_intent, parent, false)
+                    intentView = v
+                    IntentViewHolder(v)
+                }
+                else -> {
+                    val v = inflater.inflate(R.layout.layout_advanced_sql, parent, false)
+                    sqlView = v
+                    SqlViewHolder(v)
+                }
             }
+            return view
         }
 
         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-            if (position == 0) (holder as RulesViewHolder).bind()
-            else (holder as SqlViewHolder).bind()
+            when (position) {
+                0 -> (holder as RulesViewHolder).bind()
+                1 -> (holder as IntentViewHolder).bind()
+                2 -> (holder as SqlViewHolder).bind()
+            }
         }
     }
     
+    // =========================================================================
+    // Intent Sender Section View Holder
+    // =========================================================================
+
+    private inner class IntentViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val switchIntentSender = itemView.findViewById<MaterialSwitch>(R.id.switchIntentSender)
+        private val layoutFields = itemView.findViewById<LinearLayout>(R.id.layoutIntentSettingsFields)
+        private val etIntentAction = itemView.findViewById<TextInputEditText>(R.id.etIntentAction)
+        private val etIntentPackage = itemView.findViewById<TextInputEditText>(R.id.etIntentPackage)
+        private val btnSelectTargetApp = itemView.findViewById<Button>(R.id.btnSelectTargetApp)
+        private val etIntentExtraKey = itemView.findViewById<TextInputEditText>(R.id.etIntentExtraKey)
+        private val btnSaveIntentSettings = itemView.findViewById<Button>(R.id.btnSaveIntentSettings)
+
+        fun bind() {
+            val initialEnabled = prefs.getBoolean(KEY_INTENT_SENDER_ENABLED, false)
+            switchIntentSender?.isChecked = initialEnabled
+            updateFieldsEnabled(initialEnabled)
+
+            etIntentAction?.setText(prefs.getString(KEY_INTENT_SENDER_ACTION, ""))
+            etIntentPackage?.setText(prefs.getString(KEY_INTENT_SENDER_PACKAGE, ""))
+            etIntentExtraKey?.setText(prefs.getString(KEY_INTENT_SENDER_EXTRA_KEY, ""))
+
+            switchIntentSender?.setOnCheckedChangeListener { _, isChecked ->
+                updateFieldsEnabled(isChecked)
+            }
+
+            btnSelectTargetApp?.setOnClickListener {
+                showAppPickerDialog()
+            }
+
+            btnSaveIntentSettings?.setOnClickListener {
+                val isEnabled = switchIntentSender?.isChecked == true
+                val action = etIntentAction?.text?.toString()?.trim() ?: ""
+                val pkg = etIntentPackage?.text?.toString()?.trim() ?: ""
+                val extraKey = etIntentExtraKey?.text?.toString()?.trim() ?: ""
+
+                if (isEnabled && action.isEmpty()) {
+                    Toast.makeText(this@AdvancedActivity, "Intent Action is required when enabled", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                if (isEnabled && extraKey.isEmpty()) {
+                    Toast.makeText(this@AdvancedActivity, "Extra Key is required when enabled", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+
+                prefs.edit().apply {
+                    putBoolean(KEY_INTENT_SENDER_ENABLED, isEnabled)
+                    putString(KEY_INTENT_SENDER_ACTION, action)
+                    putString(KEY_INTENT_SENDER_PACKAGE, pkg)
+                    putString(KEY_INTENT_SENDER_EXTRA_KEY, extraKey)
+                    apply()
+                }
+                Toast.makeText(this@AdvancedActivity, "Intent settings saved", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        private fun updateFieldsEnabled(enabled: Boolean) {
+            layoutFields?.let { container ->
+                container.alpha = if (enabled) 1.0f else 0.5f
+                for (i in 0 until container.childCount) {
+                    val child = container.getChildAt(i)
+                    child.isEnabled = enabled
+                    if (child is ViewGroup) {
+                        enableViewGroup(child, enabled)
+                    }
+                }
+            }
+        }
+
+        private fun enableViewGroup(viewGroup: ViewGroup, enabled: Boolean) {
+            for (i in 0 until viewGroup.childCount) {
+                val child = viewGroup.getChildAt(i)
+                child.isEnabled = enabled
+                if (child is ViewGroup) {
+                    enableViewGroup(child, enabled)
+                }
+            }
+        }
+
+        private fun showAppPickerDialog() {
+            lifecycleScope.launch(Dispatchers.IO) {
+                val pm = packageManager
+                val intent = Intent(Intent.ACTION_MAIN, null).apply {
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                }
+                val resolveInfos = pm.queryIntentActivities(intent, 0)
+                val apps = resolveInfos.map {
+                    Pair(it.loadLabel(pm).toString(), it.activityInfo.packageName)
+                }.distinctBy { it.second }.sortedBy { it.first.lowercase() }
+
+                withContext(Dispatchers.Main) {
+                    val appNames = apps.map { it.first }.toTypedArray()
+                    AlertDialog.Builder(this@AdvancedActivity)
+                        .setTitle("Select Target App")
+                        .setItems(appNames) { _, which ->
+                            etIntentPackage?.setText(apps[which].second)
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                }
+            }
+        }
+    }
+
     // =========================================================================
     // SQL Section View Holder
     // =========================================================================
