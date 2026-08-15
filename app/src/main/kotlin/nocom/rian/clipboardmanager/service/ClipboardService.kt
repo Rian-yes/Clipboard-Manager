@@ -479,6 +479,7 @@ class ClipboardService : Service() {
                     lastTimestamp  = currentTime
     
                     val existing = repository.findByContent(text)
+                    val isNew = existing == null
                     if (existing != null) {
                         repository.refreshExistingClip(id = existing.id, timestamp = currentTime)
                         android.util.Log.d("ClipboardService", "Refreshed existing clip id=${existing.id}")
@@ -500,29 +501,32 @@ class ClipboardService : Service() {
                         repository.insert(textItem)
                         android.util.Log.d("ClipboardService", "Inserted text clip from ${source.packageName}")
                         enforcePolicies(repository)
+                    }
 
-                        // Send broadcast intent if enabled in settings
-                        try {
-                            val prefs = getSharedPreferences("clipboard_settings", Context.MODE_PRIVATE)
-                            val enabled = prefs.getBoolean("intent_sender_enabled", false)
+                    // Send broadcast intent if enabled in settings
+                    try {
+                        val prefs = getSharedPreferences("clipboard_settings", Context.MODE_PRIVATE)
+                        val enabled = prefs.getBoolean("intent_sender_enabled", false)
+                        val allowUpdate = prefs.getBoolean("intent_sender_on_update", false)
+                        if (enabled && (isNew || allowUpdate)) {
                             val action = prefs.getString("intent_sender_action", "") ?: ""
                             val extraKey = prefs.getString("intent_sender_extra_key", "") ?: ""
                             val pkg = prefs.getString("intent_sender_package", "") ?: ""
-                            if (enabled && action.isNotEmpty() && extraKey.isNotEmpty()) {
-                                val intent = Intent(action).apply {
-                                    putExtra(extraKey, text)
-                                    if (pkg.isNotEmpty()) {
-                                        setPackage(pkg)
+                            if (action.isNotEmpty() && extraKey.isNotEmpty() && pkg.isNotEmpty()) {
+                                val packageList = pkg.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                                for (p in packageList) {
+                                    val intent = Intent(action).apply {
+                                        putExtra(extraKey, text)
+                                        setPackage(p)
+                                        addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
                                     }
-                                    addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+                                    sendBroadcast(intent)
                                 }
-                                sendBroadcast(intent)
-                                android.util.Log.d("ClipboardService", "Sent broadcast intent: action=$action, extraKey=$extraKey, package=$pkg")
+                                android.util.Log.d("ClipboardService", "Sent broadcast intents to packages: $packageList with action=$action, extraKey=$extraKey")
                             }
-                        } catch (e: Exception) {
-                            android.util.Log.e("ClipboardService", "Failed to send broadcast intent", e)
                         }
-                        enforcePolicies(repository)
+                    } catch (e: Exception) {
+                        android.util.Log.e("ClipboardService", "Failed to send broadcast intent", e)
                     }
                 }
     

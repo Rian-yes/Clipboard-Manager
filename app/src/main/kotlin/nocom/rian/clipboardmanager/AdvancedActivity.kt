@@ -46,6 +46,7 @@ class AdvancedActivity : AppCompatActivity() {
         const val KEY_INTENT_SENDER_ACTION = "intent_sender_action"
         const val KEY_INTENT_SENDER_PACKAGE = "intent_sender_package"
         const val KEY_INTENT_SENDER_EXTRA_KEY = "intent_sender_extra_key"
+        const val KEY_INTENT_SENDER_ON_UPDATE = "intent_sender_on_update"
     }
     // =========================================================================
     // Lifecycle
@@ -130,6 +131,7 @@ class AdvancedActivity : AppCompatActivity() {
         private val btnSelectTargetApp = itemView.findViewById<Button>(R.id.btnSelectTargetApp)
         private val etIntentExtraKey = itemView.findViewById<TextInputEditText>(R.id.etIntentExtraKey)
         private val btnSaveIntentSettings = itemView.findViewById<Button>(R.id.btnSaveIntentSettings)
+        private val switchIntentOnUpdate = itemView.findViewById<MaterialSwitch>(R.id.switchIntentOnUpdate)
 
         fun bind() {
             val initialEnabled = prefs.getBoolean(KEY_INTENT_SENDER_ENABLED, false)
@@ -139,6 +141,7 @@ class AdvancedActivity : AppCompatActivity() {
             etIntentAction?.setText(prefs.getString(KEY_INTENT_SENDER_ACTION, ""))
             etIntentPackage?.setText(prefs.getString(KEY_INTENT_SENDER_PACKAGE, ""))
             etIntentExtraKey?.setText(prefs.getString(KEY_INTENT_SENDER_EXTRA_KEY, ""))
+            switchIntentOnUpdate?.isChecked = prefs.getBoolean(KEY_INTENT_SENDER_ON_UPDATE, false)
 
             switchIntentSender?.setOnCheckedChangeListener { _, isChecked ->
                 updateFieldsEnabled(isChecked)
@@ -153,21 +156,26 @@ class AdvancedActivity : AppCompatActivity() {
                 val action = etIntentAction?.text?.toString()?.trim() ?: ""
                 val pkg = etIntentPackage?.text?.toString()?.trim() ?: ""
                 val extraKey = etIntentExtraKey?.text?.toString()?.trim() ?: ""
+                val isOnUpdateEnabled = switchIntentOnUpdate?.isChecked == true
 
                 if (isEnabled && action.isEmpty()) {
                     Toast.makeText(this@AdvancedActivity, "Intent Action is required when enabled", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                if (isEnabled && pkg.isEmpty()) {
+                    Toast.makeText(this@AdvancedActivity, "At least one Target App must be selected when enabled", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
                 if (isEnabled && extraKey.isEmpty()) {
                     Toast.makeText(this@AdvancedActivity, "Extra Key is required when enabled", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-
                 prefs.edit().apply {
                     putBoolean(KEY_INTENT_SENDER_ENABLED, isEnabled)
                     putString(KEY_INTENT_SENDER_ACTION, action)
                     putString(KEY_INTENT_SENDER_PACKAGE, pkg)
                     putString(KEY_INTENT_SENDER_EXTRA_KEY, extraKey)
+                    putBoolean(KEY_INTENT_SENDER_ON_UPDATE, isOnUpdateEnabled)
                     apply()
                 }
                 Toast.makeText(this@AdvancedActivity, "Intent settings saved", Toast.LENGTH_SHORT).show()
@@ -209,11 +217,23 @@ class AdvancedActivity : AppCompatActivity() {
                 }.distinctBy { it.second }.sortedBy { it.first.lowercase() }
 
                 withContext(Dispatchers.Main) {
+                    val currentText = etIntentPackage?.text?.toString() ?: ""
+                    val currentPackages = currentText.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+                    
                     val appNames = apps.map { it.first }.toTypedArray()
+                    val checkedItems = BooleanArray(apps.size) { i ->
+                        currentPackages.contains(apps[i].second)
+                    }
+
                     AlertDialog.Builder(this@AdvancedActivity)
-                        .setTitle("Select Target App")
-                        .setItems(appNames) { _, which ->
-                            etIntentPackage?.setText(apps[which].second)
+                        .setTitle("Select Target Apps")
+                        .setMultiChoiceItems(appNames, checkedItems) { _, which, isChecked ->
+                            checkedItems[which] = isChecked
+                        }
+                        .setPositiveButton("OK") { _, _ ->
+                            val selectedPackages = apps.filterIndexed { index, _ -> checkedItems[index] }
+                                .map { it.second }
+                            etIntentPackage?.setText(selectedPackages.joinToString(", "))
                         }
                         .setNegativeButton("Cancel", null)
                         .show()

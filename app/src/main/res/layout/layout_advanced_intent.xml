@@ -48,7 +48,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:layout_marginBottom="16dp"
-                    android:text="Automatically send text clips to another application via an Android Broadcast Intent."
+                    android:text="Automatically send text clips to selected target applications via explicit Android Broadcast Intents."
                     android:textAppearance="@style/TextAppearance.Material3.BodySmall"
                     android:textColor="@color/md_theme_onSurfaceVariant" />
 
@@ -84,7 +84,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:hint="Target Package (Optional)">
+                            android:hint="Target Package(s) (Required)">
 
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etIntentPackage"
@@ -115,6 +115,13 @@
                             android:layout_height="wrap_content"
                             android:inputType="text" />
                     </com.google.android.material.textfield.TextInputLayout>
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switchIntentOnUpdate"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="16dp"
+                        android:text="Allow Updated/Duplicate Clips"
+                        android:textAppearance="?attr/textAppearanceBodyMedium" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnSaveIntentSettings"
