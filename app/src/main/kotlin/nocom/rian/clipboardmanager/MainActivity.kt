@@ -557,14 +557,13 @@ class MainActivity : AppCompatActivity() {
             }
     
             if (!hasPermission) {
-                Toast.makeText(
-                    this, 
-                    "Overlay feature enabled, but requires 'Display over other apps' permission!", 
-                    Toast.LENGTH_LONG
-                ).show()
-                
-                val intent = Intent(this, PermissionActivity::class.java)
-                startActivity(intent)
+                Snackbar.make(
+                    binding.root,
+                    "Overlay feature enabled, but requires 'Display over other apps' permission!",
+                    Snackbar.LENGTH_LONG
+                ).setAction("Fix") {
+                    startActivity(Intent(this, PermissionActivity::class.java))
+                }.show()
             }
         }
     }

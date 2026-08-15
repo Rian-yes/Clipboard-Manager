@@ -100,6 +100,13 @@ class PermissionActivity : AppCompatActivity() {
         refreshOverlayStatus()
     }
 
+    override fun onResume() {
+        super.onResume()
+        checkAndRefreshShizukuStatus()
+        refreshNotificationStatus()
+        refreshBatteryStatus()
+        refreshOverlayStatus()
+    }
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true
@@ -123,7 +130,24 @@ class PermissionActivity : AppCompatActivity() {
     
         binding.btnGrantNotification.setOnClickListener {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    val prefs = getSharedPreferences("permission_prefs", MODE_PRIVATE)
+                    val requestedBefore = prefs.getBoolean("requested_notifications", false)
+                    if (requestedBefore && !shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS)) {
+                        Toast.makeText(
+                            this,
+                            "Notification permission permanently denied. Please enable it in App Settings.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = android.net.Uri.parse("package:$packageName")
+                        }
+                        startActivity(intent)
+                    } else {
+                        prefs.edit().putBoolean("requested_notifications", true).apply()
+                        notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
             }
         }
     
@@ -196,18 +220,7 @@ class PermissionActivity : AppCompatActivity() {
         }
         updateStatusUi(true, "Connected · $identity")
         binding.btnGrantShizuku.visibility = View.GONE
-    
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-            } else {
-                startClipboardService()
-            }
-        } else {
-            startClipboardService()
-        }
+        startClipboardService()
     }
     
     private fun startClipboardService() {
