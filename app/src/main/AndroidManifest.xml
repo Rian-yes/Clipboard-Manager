@@ -61,11 +61,16 @@
 
         <activity
             android:name=".ui.OverlayActivity"
-            android:exported="false"
+            android:exported="true"
             android:theme="@style/Theme.ClipboardManager.OverlayDialog"
             android:launchMode="singleTop"
             android:excludeFromRecents="true"
-            android:taskAffinity=".overlay_task" />
+            android:taskAffinity=".overlay_task">
+            <intent-filter>
+                <action android:name="nocom.rian.clipboardmanager.ACTION_SHOW_OVERLAY" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
 
         <service
