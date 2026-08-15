@@ -123,6 +123,49 @@
                         android:text="Display a persistent floating shortcut trigger over other applications to instantly view, query, and handle your clip history records."
                         android:textSize="13sp"
                         android:textColor="@color/md_theme_onSurfaceVariant" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="16dp"
+                        android:background="?attr/colorOutlineVariant" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Launch via Automation Intent"
+                        android:textAppearance="?attr/textAppearanceTitleSmall" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Trigger the overlay from automation apps like Tasker or MacroDroid using the intent action below. This bypasses the button toggle state without changing your settings."
+                        android:textSize="13sp"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+
+                    <TextView
+                        android:id="@+id/tvOverlayIntentAction"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="?attr/colorSecondaryContainer"
+                        android:padding="12dp"
+                        android:text="nocom.rian.clipboardmanager.ACTION_SHOW_OVERLAY"
+                        android:fontFamily="monospace"
+                        android:textSize="11sp"
+                        android:textColor="?attr/colorOnSecondaryContainer"
+                        android:clickable="true"
+                        android:focusable="true" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnTestOverlayIntent"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Test Action Intent" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

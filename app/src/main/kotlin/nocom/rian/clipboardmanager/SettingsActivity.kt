@@ -263,6 +263,20 @@ class SettingsActivity : AppCompatActivity() {
                 sendBroadcast(intent)
             }
         }
+
+        binding.tvOverlayIntentAction.setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Overlay Action Intent", binding.tvOverlayIntentAction.text))
+            Toast.makeText(this, "Action copied to clipboard", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnTestOverlayIntent.setOnClickListener {
+            val intent = Intent("nocom.rian.clipboardmanager.ACTION_SHOW_OVERLAY").apply {
+                setPackage(packageName)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            startActivity(intent)
+        }
  
         binding.sliderAutoDelete.addOnChangeListener { _, value, _ ->
             val days = value.toInt()
