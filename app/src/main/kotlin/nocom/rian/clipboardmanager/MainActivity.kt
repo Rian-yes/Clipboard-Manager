@@ -68,8 +68,6 @@ class MainActivity : AppCompatActivity() {
         observeViewModel()
         updateFilterIndicator()
         
-        Shizuku.addBinderReceivedListener(binderReceivedListener)
-        Shizuku.addBinderDeadListener(binderDeadListener)
     }
 
     override fun onResume() {
@@ -107,11 +105,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        Shizuku.removeBinderReceivedListener(binderReceivedListener)
-        Shizuku.removeBinderDeadListener(binderDeadListener)
-    }
 
     // =========================================================================
     // 2. UI & Component Initialization
@@ -862,32 +855,7 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    // =========================================================================
-    // 7. System Asynchronous Callback Launchers & Listeners
-    // =========================================================================
 
-    private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
-        try {
-            if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
-                val monitoringEnabled = getSharedPreferences("clipboard_settings", MODE_PRIVATE)
-                    .getBoolean("monitoring_enabled", true)
-    
-                if (monitoringEnabled) {
-                    startClipboardService()
-                }
-            }
-        } catch (e: Exception) { /* ignore */ }
-    
-        runOnUiThread {
-            shizukuSnackbar?.dismiss()
-            shizukuSnackbar = null
-        }
-    }
-    
-    private val binderDeadListener = Shizuku.OnBinderDeadListener {
-        // ClipboardService handles its own reconnection; nothing to do in UI
-    }
-    
     private val notificationPermissionLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { _ ->
