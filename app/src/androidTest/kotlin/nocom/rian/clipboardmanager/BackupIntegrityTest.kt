@@ -133,6 +133,35 @@ class BackupIntegrityTest {
     }
 
     @Test
+    fun testIntentSenderBackupAndRestore() {
+        val intentJson = """{
+            "${AdvancedActivity.KEY_INTENT_SENDER_ENABLED}": true,
+            "${AdvancedActivity.KEY_INTENT_SENDER_ACTION}": "com.test.ACTION",
+            "${AdvancedActivity.KEY_INTENT_SENDER_PACKAGE}": "com.test.package",
+            "${AdvancedActivity.KEY_INTENT_SENDER_EXTRA_KEY}": "my_extra",
+            "${AdvancedActivity.KEY_INTENT_SENDER_ON_UPDATE}": true
+        }""".trimIndent()
+
+        val out = ByteArrayOutputStream()
+        val exportResult = BackupManager.exportZip(db, out, null, intentJson)
+        assertTrue(exportResult.isSuccess)
+
+        val input = ByteArrayInputStream(out.toByteArray())
+        val importResult = BackupManager.importZip(input, tempImageDir)
+        assertTrue(importResult.isSuccess)
+
+        val restoredIntentSenderJson = importResult.getOrThrow().intentSenderJson
+        assertNotNull(restoredIntentSenderJson)
+
+        val jsonObject = com.google.gson.JsonParser.parseString(restoredIntentSenderJson!!).asJsonObject
+        assertTrue(jsonObject.get(AdvancedActivity.KEY_INTENT_SENDER_ENABLED).asBoolean)
+        assertEquals("com.test.ACTION", jsonObject.get(AdvancedActivity.KEY_INTENT_SENDER_ACTION).asString)
+        assertEquals("com.test.package", jsonObject.get(AdvancedActivity.KEY_INTENT_SENDER_PACKAGE).asString)
+        assertEquals("my_extra", jsonObject.get(AdvancedActivity.KEY_INTENT_SENDER_EXTRA_KEY).asString)
+        assertTrue(jsonObject.get(AdvancedActivity.KEY_INTENT_SENDER_ON_UPDATE).asBoolean)
+    }
+
+    @Test
     fun testCorruptAndTruncatedBackupDetect() {
         val badBytes = "this-is-garbage-zip-content".toByteArray()
         val input = ByteArrayInputStream(badBytes)

@@ -251,7 +251,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         binding.switchFloatingOverlay.apply {
-            isChecked = prefs.getBoolean(KEY_FLOATING_OVERLAY_ENABLED, true)
+            isChecked = prefs.getBoolean(KEY_FLOATING_OVERLAY_ENABLED, false)
             setOnCheckedChangeListener { _, isChecked ->
                 prefs.edit().putBoolean(KEY_FLOATING_OVERLAY_ENABLED, isChecked).apply()
                 
@@ -730,9 +730,17 @@ class SettingsActivity : AppCompatActivity() {
                     val rulesJson = prefs.getString(
                         nocom.rian.clipboardmanager.db.PREFS_KEY_AUTOMATION_RULES, null
                     )
+                    val intentSenderSettings = mapOf(
+                        AdvancedActivity.KEY_INTENT_SENDER_ENABLED to prefs.getBoolean(AdvancedActivity.KEY_INTENT_SENDER_ENABLED, false),
+                        AdvancedActivity.KEY_INTENT_SENDER_ACTION to prefs.getString(AdvancedActivity.KEY_INTENT_SENDER_ACTION, ""),
+                        AdvancedActivity.KEY_INTENT_SENDER_PACKAGE to prefs.getString(AdvancedActivity.KEY_INTENT_SENDER_PACKAGE, ""),
+                        AdvancedActivity.KEY_INTENT_SENDER_EXTRA_KEY to prefs.getString(AdvancedActivity.KEY_INTENT_SENDER_EXTRA_KEY, ""),
+                        AdvancedActivity.KEY_INTENT_SENDER_ON_UPDATE to prefs.getBoolean(AdvancedActivity.KEY_INTENT_SENDER_ON_UPDATE, false)
+                    )
+                    val intentSenderJson = com.google.gson.Gson().toJson(intentSenderSettings)
     
                     contentResolver.openOutputStream(uri)?.use { stream ->
-                        BackupManager.exportZip(db, stream, rulesJson) { exported, total ->
+                        BackupManager.exportZip(db, stream, rulesJson, intentSenderJson) { exported, total ->
                             android.util.Log.d("SettingsActivity", "Export progress: $exported / $total")
                         }
                     } ?: Result.failure(Exception("Could not open output stream"))
@@ -806,6 +814,31 @@ class SettingsActivity : AppCompatActivity() {
                                 if (newRules.isNotEmpty()) {
                                     nocom.rian.clipboardmanager.db.saveRules(prefs, existingRules + newRules)
                                     android.util.Log.d("SettingsActivity", "Merged ${newRules.size} new automation rule(s) from backup")
+                                }
+                            }
+                            if (!brResult.intentSenderJson.isNullOrBlank()) {
+                                try {
+                                    val jsonObject = com.google.gson.JsonParser.parseString(brResult.intentSenderJson).asJsonObject
+                                    val edit = prefs.edit()
+                                    if (jsonObject.has(AdvancedActivity.KEY_INTENT_SENDER_ENABLED)) {
+                                        edit.putBoolean(AdvancedActivity.KEY_INTENT_SENDER_ENABLED, jsonObject.get(AdvancedActivity.KEY_INTENT_SENDER_ENABLED).asBoolean)
+                                    }
+                                    if (jsonObject.has(AdvancedActivity.KEY_INTENT_SENDER_ACTION)) {
+                                        edit.putString(AdvancedActivity.KEY_INTENT_SENDER_ACTION, jsonObject.get(AdvancedActivity.KEY_INTENT_SENDER_ACTION).asString)
+                                    }
+                                    if (jsonObject.has(AdvancedActivity.KEY_INTENT_SENDER_PACKAGE)) {
+                                        edit.putString(AdvancedActivity.KEY_INTENT_SENDER_PACKAGE, jsonObject.get(AdvancedActivity.KEY_INTENT_SENDER_PACKAGE).asString)
+                                    }
+                                    if (jsonObject.has(AdvancedActivity.KEY_INTENT_SENDER_EXTRA_KEY)) {
+                                        edit.putString(AdvancedActivity.KEY_INTENT_SENDER_EXTRA_KEY, jsonObject.get(AdvancedActivity.KEY_INTENT_SENDER_EXTRA_KEY).asString)
+                                    }
+                                    if (jsonObject.has(AdvancedActivity.KEY_INTENT_SENDER_ON_UPDATE)) {
+                                        edit.putBoolean(AdvancedActivity.KEY_INTENT_SENDER_ON_UPDATE, jsonObject.get(AdvancedActivity.KEY_INTENT_SENDER_ON_UPDATE).asBoolean)
+                                    }
+                                    edit.apply()
+                                    android.util.Log.d("SettingsActivity", "Imported intent sender settings from backup")
+                                } catch (e: Exception) {
+                                    android.util.Log.e("SettingsActivity", "Failed to parse/apply imported intent sender settings", e)
                                 }
                             }
                             Result.success(brResult.clips.size)
@@ -945,7 +978,7 @@ class SettingsActivity : AppCompatActivity() {
         */
         fun isOverlayFeatureAllowed(context: Context): Boolean {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val isSettingEnabled = prefs.getBoolean(KEY_FLOATING_OVERLAY_ENABLED, true)
+            val isSettingEnabled = prefs.getBoolean(KEY_FLOATING_OVERLAY_ENABLED, false)
             
             val hasSystemPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 android.provider.Settings.canDrawOverlays(context)

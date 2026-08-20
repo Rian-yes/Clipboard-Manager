@@ -26,7 +26,8 @@ data class BackupManifest(
 
 data class BackupResult(
     val clips: List<ClipboardItem>,
-    val rulesJson: String?
+    val rulesJson: String?,
+    val intentSenderJson: String? = null
 )
 
 object BackupManager {
@@ -52,6 +53,7 @@ object BackupManager {
         database: AppDatabase,
         outputStream: OutputStream,
         rulesJson: String? = null,
+        intentSenderJson: String? = null,
         onProgress: ((exportedClips: Int, totalClips: Int) -> Unit)? = null
     ): Result<Int> {
         return try {
@@ -146,6 +148,12 @@ object BackupManager {
                     zip.closeEntry()
                 }
 
+                if (!intentSenderJson.isNullOrBlank()) {
+                    zip.putNextEntry(ZipEntry("intent_sender_settings.json"))
+                    zip.write(intentSenderJson.toByteArray(Charsets.UTF_8))
+                    zip.closeEntry()
+                }
+
                 offset = 0
                 while (offset < totalClips) {
                     val chunk = kotlinx.coroutines.runBlocking { dao.getClipsChunk(limit, offset) }
@@ -198,6 +206,7 @@ object BackupManager {
 
             var manifest: BackupManifest? = null
             var importedRulesJson: String? = null
+            var importedIntentSenderJson: String? = null
 
             val zipPathToTempFile = mutableMapOf<String, File>()
 
@@ -218,6 +227,12 @@ object BackupManager {
                             importedRulesJson = bos.toString("UTF-8")
                         }
 
+
+                        entryName == "intent_sender_settings.json" -> {
+                            val bos = java.io.ByteArrayOutputStream()
+                            zip.copyTo(bos)
+                            importedIntentSenderJson = bos.toString("UTF-8")
+                        }
                         entryName == "backup.json" || entryName == "backup_stream.json" -> {
                             val tempFile = File.createTempFile("imported_backup_", ".json")
                             tempFilesToClean.add(tempFile)
@@ -320,7 +335,13 @@ object BackupManager {
                 }
             }
 
-            Result.success(BackupResult(clips = resolvedClips, rulesJson = importedRulesJson))
+            Result.success(
+                BackupResult(
+                    clips = resolvedClips,
+                    rulesJson = importedRulesJson,
+                    intentSenderJson = importedIntentSenderJson
+                )
+            )
         } catch (e: Exception) {
             tempFilesToClean.forEach {
                 if (it.exists()) {
