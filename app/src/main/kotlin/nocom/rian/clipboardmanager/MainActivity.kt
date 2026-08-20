@@ -547,7 +547,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkOverlayPermissionGuard() {
         val prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, MODE_PRIVATE)
-        val isSettingEnabled = prefs.getBoolean(SettingsActivity.KEY_FLOATING_OVERLAY_ENABLED, true)
+        val isSettingEnabled = prefs.getBoolean(SettingsActivity.KEY_FLOATING_OVERLAY_ENABLED, false)
     
         if (isSettingEnabled) {
             val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
