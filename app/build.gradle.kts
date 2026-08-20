@@ -55,6 +55,7 @@ android {
         targetSdk = 36  
         versionCode = 1
         versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
         vectorDrawables { 
             useSupportLibrary = true
@@ -162,4 +163,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:$lifecycle_version")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:$lifecycle_version")
     implementation("androidx.lifecycle:lifecycle-viewmodel-savedstate:$lifecycle_version")
-}    
+
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test:core:1.5.0")
+}

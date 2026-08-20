@@ -1,0 +1,142 @@
+package nocom.rian.clipboardmanager
+
+import android.content.Context
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import nocom.rian.clipboardmanager.db.*
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+
+@RunWith(AndroidJUnit4::class)
+class BackupIntegrityTest {
+
+    private lateinit var db: AppDatabase
+    private lateinit var dao: ClipboardDao
+    private lateinit var context: Context
+    private lateinit var tempImageDir: File
+
+    @Before
+    fun createDb() {
+        context = ApplicationProvider.getApplicationContext()
+        db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
+        dao = db.clipboardDao()
+        tempImageDir = File(context.cacheDir, "test_images")
+        tempImageDir.mkdirs()
+    }
+
+    @After
+    @Throws(IOException::class)
+    fun closeDb() {
+        db.close()
+        tempImageDir.deleteRecursively()
+    }
+
+    @Test
+    fun testExportAndImport11000Clips() {
+        val testClipsCount = 11247
+        val batch = mutableListOf<ClipboardItem>()
+        for (i in 1..testClipsCount) {
+            batch.add(
+                ClipboardItem(
+                    id = 0,
+                    clip = "Test clip content $i",
+                    appName = "App$i",
+                    packageName = "com.test.app$i",
+                    timestamp = System.currentTimeMillis() + i
+                )
+            )
+        }
+        
+        batch.chunked(500).forEach { chunk ->
+            kotlinx.coroutines.runBlocking {
+                dao.insertAll(chunk)
+            }
+        }
+
+        val count = kotlinx.coroutines.runBlocking { dao.getTotalClipCount() }
+        assertEquals(testClipsCount, count)
+
+        val out = ByteArrayOutputStream()
+        val exportResult = BackupManager.exportZip(db, out, null)
+        assertTrue(exportResult.isSuccess)
+        assertEquals(testClipsCount, exportResult.getOrThrow())
+
+        kotlinx.coroutines.runBlocking { dao.deleteAll() }
+        assertEquals(0, kotlinx.coroutines.runBlocking { dao.getTotalClipCount() })
+
+        val input = ByteArrayInputStream(out.toByteArray())
+        val importResult = BackupManager.importZip(input, tempImageDir)
+        assertTrue(importResult.isSuccess)
+        
+        val restoredClips = importResult.getOrThrow().clips
+        assertEquals(testClipsCount, restoredClips.size)
+
+        restoredClips.chunked(500).forEach { chunk ->
+            kotlinx.coroutines.runBlocking {
+                dao.insertAll(chunk)
+            }
+        }
+
+        val finalCount = kotlinx.coroutines.runBlocking { dao.getTotalClipCount() }
+        assertEquals(testClipsCount, finalCount)
+
+        val allItems = kotlinx.coroutines.runBlocking { dao.getAllClipsOnce() }
+        assertEquals(testClipsCount, allItems.size)
+        val sample = allItems.find { it.clip == "Test clip content 500" }
+        assertNotNull(sample)
+        assertEquals("App500", sample?.appName)
+        assertEquals("com.test.app500", sample?.packageName)
+    }
+
+    @Test
+    fun testImageBackupIntegrityAndDeduplication() {
+        val imgFile = File(tempImageDir, "source_image.png")
+        imgFile.writeText("fake-image-bytes")
+
+        val clip1 = ClipboardItem(id = 1, clip = "Image Clip 1", filePath = imgFile.absolutePath)
+        val clip2 = ClipboardItem(id = 2, clip = "Image Clip 2", filePath = imgFile.absolutePath)
+
+        kotlinx.coroutines.runBlocking {
+            dao.insert(clip1)
+            dao.insert(clip2)
+        }
+
+        val out = ByteArrayOutputStream()
+        val exportResult = BackupManager.exportZip(db, out, null)
+        assertTrue(exportResult.isSuccess)
+
+        val input = ByteArrayInputStream(out.toByteArray())
+        val importResult = BackupManager.importZip(input, tempImageDir)
+        assertTrue(importResult.isSuccess)
+
+        val restored = importResult.getOrThrow().clips
+        assertEquals(2, restored.size)
+
+        val firstPath = restored[0].filePath
+        val secondPath = restored[1].filePath
+        assertNotNull(firstPath)
+        assertNotNull(secondPath)
+        assertEquals(firstPath, secondPath) // Deduplicated path
+
+        val restoredFile = File(firstPath!!)
+        assertTrue(restoredFile.exists())
+        assertEquals("fake-image-bytes", restoredFile.readText())
+    }
+
+    @Test
+    fun testCorruptAndTruncatedBackupDetect() {
+        val badBytes = "this-is-garbage-zip-content".toByteArray()
+        val input = ByteArrayInputStream(badBytes)
+        val importResult = BackupManager.importZip(input, tempImageDir)
+        assertTrue(importResult.isFailure)
+    }
+}
