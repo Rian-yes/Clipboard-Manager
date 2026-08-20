@@ -162,6 +162,50 @@ class BackupIntegrityTest {
     }
 
     @Test
+    fun testImportDeduplicationLogic() {
+        val clip = ClipboardItem(id = 0, clip = "Unique text content", packageName = "com.test")
+        kotlinx.coroutines.runBlocking { dao.insert(clip) }
+
+        val backupClips = listOf(
+            ClipboardItem(id = 0, clip = "Unique text content", packageName = "com.test"),
+            ClipboardItem(id = 0, clip = "New content", packageName = "com.test")
+        )
+
+        kotlinx.coroutines.runBlocking {
+            val existing = dao.getAllClipsOnce()
+            val existingTexts = existing.mapNotNull { it.clip }.toHashSet()
+            val existingImageKeys = existing
+                .filter { it.imageHash != null }
+                .mapTo(HashSet()) { "${it.imageHash}|${it.packageName}" }
+
+            var addedCount = 0
+            var skippedCount = 0
+
+            val newClips = backupClips.filter { item ->
+                val isDup = when {
+                    item.clip != null -> item.clip in existingTexts
+                    item.imageHash != null -> "${item.imageHash}|${item.packageName}" in existingImageKeys
+                    else -> false
+                }
+                if (isDup) {
+                    skippedCount++
+                    false
+                } else {
+                    item.clip?.let { existingTexts.add(it) }
+                    item.imageHash?.let { existingImageKeys.add("$it|${item.packageName}") }
+                    addedCount++
+                    true
+                }
+            }
+
+            assertEquals(1, addedCount)
+            assertEquals(1, skippedCount)
+            assertEquals(1, newClips.size)
+            assertEquals("New content", newClips[0].clip)
+        }
+    }
+
+    @Test
     fun testCorruptAndTruncatedBackupDetect() {
         val badBytes = "this-is-garbage-zip-content".toByteArray()
         val input = ByteArrayInputStream(badBytes)

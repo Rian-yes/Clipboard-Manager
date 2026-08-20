@@ -771,7 +771,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun performImport(uri: Uri) {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Import Clips")
-            .setMessage("Imported clips will be added alongside your existing history. Duplicates may appear. Continue?")
+            .setMessage("Clips already in your history will be skipped automatically. Continue?")
             .setPositiveButton("Import") { _, _ -> doImport(uri) }
             .setNegativeButton("Cancel", null)
             .show()
@@ -791,12 +791,43 @@ class SettingsActivity : AppCompatActivity() {
                     val brResult = backupResult.getOrNull()
                     if (brResult != null) {
                         try {
+                            var importCounts = Pair(0, 0)
                             db.runInTransaction {
                                 val dao = db.clipboardDao()
-                                brResult.clips.sortedBy { it.timestamp }.chunked(500).forEach { chunk ->
-                                    kotlinx.coroutines.runBlocking {
+                                kotlinx.coroutines.runBlocking {
+                                    val existing = dao.getAllClipsOnce()
+
+                                    val existingTexts = existing.mapNotNull { it.clip }.toHashSet()
+                                    val existingImageKeys = existing
+                                        .filter { it.imageHash != null }
+                                        .mapTo(HashSet()) { "${it.imageHash}|${it.packageName}" }
+
+                                    var addedCount = 0
+                                    var skippedCount = 0
+
+                                    val newClips = brResult.clips.filter { item ->
+                                        val isDup = when {
+                                            item.clip != null -> item.clip in existingTexts
+                                            item.imageHash != null -> "${item.imageHash}|${item.packageName}" in existingImageKeys
+                                            else -> false
+                                        }
+
+                                        if (isDup) {
+                                            skippedCount++
+                                            false
+                                        } else {
+                                            item.clip?.let { existingTexts.add(it) }
+                                            item.imageHash?.let { existingImageKeys.add("$it|${item.packageName}") }
+                                            addedCount++
+                                            true
+                                        }
+                                    }
+
+                                    newClips.sortedBy { it.timestamp }.chunked(500).forEach { chunk ->
                                         dao.insertAll(chunk)
                                     }
+
+                                    importCounts = Pair(addedCount, skippedCount)
                                 }
                             }
     
@@ -841,7 +872,7 @@ class SettingsActivity : AppCompatActivity() {
                                     android.util.Log.e("SettingsActivity", "Failed to parse/apply imported intent sender settings", e)
                                 }
                             }
-                            Result.success(brResult.clips.size)
+                            Result.success(importCounts)
                         } catch (e: Exception) {
                             Result.failure(e)
                         }
@@ -854,10 +885,16 @@ class SettingsActivity : AppCompatActivity() {
             }
     
             result.fold(
-                onSuccess = { count ->
+                onSuccess = { (added, skipped) ->
+                    val message = when {
+                        added == 0 && skipped > 0 -> "Already up to date — all $skipped clip(s) in this backup already exist."
+                        added == 0 -> "No clips found in this backup."
+                        skipped == 0 -> "Imported $added new clip(s) successfully."
+                        else -> "Imported $added new clip(s), skipped $skipped duplicate(s)."
+                    }
                     Snackbar.make(
                         binding.root,
-                        "Imported $count clip${if (count == 1) "" else "s"} successfully",
+                        message,
                         Snackbar.LENGTH_LONG
                     ).show()
                 },
