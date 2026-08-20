@@ -726,19 +726,16 @@ class SettingsActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
                 try {
-                    val clips = AppDatabase.getDatabase(applicationContext)
-                        .clipboardDao()
-                        .getAllClipsOnce()
-    
-                    // Load automation rules JSON string from prefs
+                    val db = AppDatabase.getDatabase(applicationContext)
                     val rulesJson = prefs.getString(
                         nocom.rian.clipboardmanager.db.PREFS_KEY_AUTOMATION_RULES, null
                     )
     
                     contentResolver.openOutputStream(uri)?.use { stream ->
-                        BackupManager.exportZip(clips, stream, rulesJson)
+                        BackupManager.exportZip(db, stream, rulesJson) { exported, total ->
+                            android.util.Log.d("SettingsActivity", "Export progress: $exported / $total")
+                        }
                     } ?: Result.failure(Exception("Could not open output stream"))
-    
                 } catch (e: Exception) {
                     Result.failure(e)
                 }
@@ -777,40 +774,46 @@ class SettingsActivity : AppCompatActivity() {
             val result = withContext(Dispatchers.IO) {
                 try {
                     val imageDir = File(getExternalFilesDir(null), "clipboard_images")
+                    val db = AppDatabase.getDatabase(applicationContext)
     
                     val backupResult = contentResolver.openInputStream(uri)?.use { stream ->
                         BackupManager.importZip(stream, imageDir)
                     } ?: Result.failure(Exception("Could not open file"))
     
-                    backupResult.map { br ->
-                        val dao = AppDatabase.getDatabase(applicationContext).clipboardDao()
-                        val repo = ClipboardRepository(dao)
-                        br.clips.sortedBy { it.timestamp }.forEach { repo.insert(it) }
-    
-                        // Merge imported automation rules safely
-                        if (!br.rulesJson.isNullOrBlank()) {
-                            val existingRules = nocom.rian.clipboardmanager.db.loadRules(prefs).toMutableList()
-                            
-                            val importedRules: List<nocom.rian.clipboardmanager.db.AutomationRule> = try {
-                                val type = nocom.rian.clipboardmanager.db.AutomationRuleListTypeToken().type
-                                com.google.gson.Gson().fromJson(br.rulesJson, type) ?: emptyList()
-                            } catch (e: Exception) {
-                                android.util.Log.e("SettingsActivity", "Failed to parse imported rules JSON", e)
-                                emptyList()
+                    val brResult = backupResult.getOrNull()
+                    if (brResult != null) {
+                        try {
+                            db.runInTransaction {
+                                val dao = db.clipboardDao()
+                                brResult.clips.sortedBy { it.timestamp }.chunked(500).forEach { chunk ->
+                                    kotlinx.coroutines.runBlocking {
+                                        dao.insertAll(chunk)
+                                    }
+                                }
                             }
     
-                            // Merge by checking existing IDs to prevent duplicates
-                            val mergedIds = existingRules.map { it.id }.toSet()
-                            val newRules = importedRules.filter { it.id !in mergedIds }
-                            
-                            // Only save if there are actually new rules to add
-                            if (newRules.isNotEmpty()) {
-                                nocom.rian.clipboardmanager.db.saveRules(prefs, existingRules + newRules)
-                                android.util.Log.d("SettingsActivity", "Merged ${newRules.size} new automation rule(s) from backup")
+                            if (!brResult.rulesJson.isNullOrBlank()) {
+                                val existingRules = nocom.rian.clipboardmanager.db.loadRules(prefs).toMutableList()
+                                val importedRules: List<nocom.rian.clipboardmanager.db.AutomationRule> = try {
+                                    val type = nocom.rian.clipboardmanager.db.AutomationRuleListTypeToken().type
+                                    com.google.gson.Gson().fromJson(brResult.rulesJson, type) ?: emptyList()
+                                } catch (e: Exception) {
+                                    android.util.Log.e("SettingsActivity", "Failed to parse imported rules JSON", e)
+                                    emptyList()
+                                }
+                                val mergedIds = existingRules.map { it.id }.toSet()
+                                val newRules = importedRules.filter { it.id !in mergedIds }
+                                if (newRules.isNotEmpty()) {
+                                    nocom.rian.clipboardmanager.db.saveRules(prefs, existingRules + newRules)
+                                    android.util.Log.d("SettingsActivity", "Merged ${newRules.size} new automation rule(s) from backup")
+                                }
                             }
+                            Result.success(brResult.clips.size)
+                        } catch (e: Exception) {
+                            Result.failure(e)
                         }
-    
-                        br.clips.size
+                    } else {
+                        Result.failure(backupResult.exceptionOrNull() ?: Exception("Unknown backup import error"))
                     }
                 } catch (e: Exception) {
                     Result.failure(e)
