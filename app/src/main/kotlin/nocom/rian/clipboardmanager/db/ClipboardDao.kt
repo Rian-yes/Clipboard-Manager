@@ -94,4 +94,13 @@ interface ClipboardDao {
     
     @Query("SELECT * FROM clipboardmanager ORDER BY is_pinned DESC, timestamp DESC")
     suspend fun getAllClipsOnce(): List<ClipboardItem>
+
+    @Query("SELECT * FROM clipboardmanager ORDER BY id ASC LIMIT :limit OFFSET :offset")
+    suspend fun getClipsChunk(limit: Int, offset: Int): List<ClipboardItem>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<ClipboardItem>)
+
+    @Query("SELECT COUNT(*) FROM clipboardmanager WHERE file_path = :path")
+    suspend fun countByFilePath(path: String): Int
 }

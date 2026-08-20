@@ -57,7 +57,14 @@ class ClipboardRepository(private val clipboardDao: ClipboardDao) {
         clipboardDao.getClipsOlderThan(cutoffMs)
         
     suspend fun getAllClips(): List<ClipboardItem> = clipboardDao.getAllClipsOnce()
-    
+
+    suspend fun getClipsChunk(limit: Int, offset: Int): List<ClipboardItem> =
+        clipboardDao.getClipsChunk(limit, offset)
+        
+    suspend fun insertAll(items: List<ClipboardItem>) = clipboardDao.insertAll(items)
+
+    suspend fun countByFilePath(path: String): Int = clipboardDao.countByFilePath(path)
+
     suspend fun searchClips(query: String): Flow<List<ClipboardItem>> {
         return clipboardDao.searchClips("%$query%")
     }
