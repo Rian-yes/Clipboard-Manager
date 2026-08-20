@@ -4,15 +4,16 @@ import android.app.Application
 import androidx.lifecycle.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import nocom.rian.clipboardmanager.db.AppDatabase
 import nocom.rian.clipboardmanager.db.ClipboardItem
 import nocom.rian.clipboardmanager.db.ClipboardRepository
-
+import nocom.rian.clipboardmanager.db.AppDatabase
 class ClipboardViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: ClipboardRepository
@@ -293,13 +294,18 @@ class ClipboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
     
     // ── 6. DELETION ACTIONS & HELPERS ──────────────────────────────────────────
-
     private fun deleteImageFileIfNeeded(item: ClipboardItem) {
-        if (item.mimeType?.startsWith("image/") == true) {
-            val file = java.io.File(item.filePath ?: return)
-            if (file.exists()) {
-                android.util.Log.d("ClipboardViewModel", "Image deleted: ${item.filePath}")
-                file.delete()
+        if (item.mimeType?.startsWith("image/") == true && item.filePath != null) {
+            val path = item.filePath
+            val count = runBlocking { repository.countByFilePath(path) }
+            if (count <= 1) {
+                val file = java.io.File(path)
+                if (file.exists()) {
+                    android.util.Log.d("ClipboardViewModel", "Image deleted: $path")
+                    file.delete()
+                }
+            } else {
+                android.util.Log.d("ClipboardViewModel", "Image file $path kept as it is referenced by other items")
             }
         }
     }
