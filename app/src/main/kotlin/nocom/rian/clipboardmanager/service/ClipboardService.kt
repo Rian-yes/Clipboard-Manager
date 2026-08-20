@@ -51,17 +51,17 @@ class ClipboardService : Service() {
     private var notificationUpdateJob: kotlinx.coroutines.Job? = null
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var clipboardService: IClipboard? = null
-    private var activityManager: IActivityManager? = null
-    private var iPackageManager: IPackageManager? = null
+    @Volatile private var clipboardService: IClipboard? = null
+    @Volatile private var activityManager: IActivityManager? = null
+    @Volatile private var iPackageManager: IPackageManager? = null
     private var overlayWindowManager: OverlayWindowManager? = null
 
     private var lastCopiedText: String? = null
     private var lastTimestamp: Long = 0
     private val CHANNEL_ID = "clipboard_monitor_channel"
 
-    private var isListenerRegistered = false
-    private var isMonitoringActive = false
+    @Volatile private var isListenerRegistered = false
+    @Volatile private var isMonitoringActive = false
     private var pendingClipRead = false
 
     private data class LogPrefs(
@@ -221,7 +221,9 @@ class ClipboardService : Service() {
         updateNotification()
     
         if (clipboardService == null && Shizuku.pingBinder()) {
-            setupShizukuServices()
+            serviceScope.launch(Dispatchers.IO) {
+                setupShizukuServices()
+            }
         }
         
         try {
@@ -301,6 +303,7 @@ class ClipboardService : Service() {
         }
     }
 
+    @Synchronized
     private fun setupShizukuServices() {
         if (!Shizuku.pingBinder()) {
             android.util.Log.w("ClipboardService", "Shizuku not available, aborting setup")
@@ -350,6 +353,7 @@ class ClipboardService : Service() {
         }
     }
     
+    @Synchronized
     private fun teardownShizukuServices() {
         try {
             if (isListenerRegistered) {
@@ -1098,13 +1102,18 @@ class ClipboardService : Service() {
         }
     }
 
-    // Replace deleteImageFileIfNeeded entirely:
     private fun deleteImageFileIfNeeded(item: ClipboardItem) {
-        if (item.mimeType?.startsWith("image/") == true) {
-            val file = java.io.File(item.filePath ?: return)
-            if (file.exists()) {
-                val deleted = file.delete()
-                android.util.Log.d("ClipboardService", "Image file deleted=$deleted: ${item.filePath}")
+        if (item.mimeType?.startsWith("image/") == true && item.filePath != null) {
+            val path = item.filePath
+            val count = kotlinx.coroutines.runBlocking { repository.countByFilePath(path) }
+            if (count <= 1) {
+                val file = java.io.File(path)
+                if (file.exists()) {
+                    val deleted = file.delete()
+                    android.util.Log.d("ClipboardService", "Image file deleted=$deleted: $path")
+                }
+            } else {
+                android.util.Log.d("ClipboardService", "Image file $path kept as it is referenced by other items")
             }
         }
     }

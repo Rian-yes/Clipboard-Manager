@@ -125,9 +125,21 @@ class PermissionActivity : AppCompatActivity() {
 
     private fun setupClickListeners() {
         binding.btnGrantShizuku.setOnClickListener {
-            checkAndRefreshShizukuStatus(requestIfNeeded = true)
+            val btnText = binding.btnGrantShizuku.text.toString()
+            if (btnText == "Install") {
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=rikka.shizuku"))
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/tiann/Shizuku/releases"))
+                    startActivity(intent)
+                }
+            } else if (btnText == "Open") {
+                openShizukuApp()
+            } else {
+                checkAndRefreshShizukuStatus(requestIfNeeded = true)
+            }
         }
-    
         binding.btnGrantNotification.setOnClickListener {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -179,17 +191,66 @@ class PermissionActivity : AppCompatActivity() {
     // 4. Core Business Logic / Task Performers
     // =========================================================================
         
+    private fun isShizukuInstalled(): Boolean {
+        return try {
+            packageManager.getPackageInfo("rikka.shizuku", 0)
+            true
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
+        }
+    }
+
+    private fun openShizukuApp() {
+        val launchIntent = packageManager.getLaunchIntentForPackage("rikka.shizuku")
+        if (launchIntent != null) {
+            startActivity(launchIntent)
+        } else {
+            Toast.makeText(this, "Could not open Shizuku app", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun checkAndRefreshShizukuStatus(requestIfNeeded: Boolean = false) {
+        val binderAlive = try { Shizuku.pingBinder() } catch (e: Exception) { false }
+
+        // "can_shizuku_be_used" — a live binder plus a granted permission, the same
+        // precondition getUid() needs to succeed. It's package-name independent, so
+        // If true, Shizuku is definitely usable — treat it as
+        // connected and skip the installed-package lookup entirely rather than let a
+        // stale/renamed package check override a working connection.
+        val permissionGranted = binderAlive && try {
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        } catch (e: Exception) {
+            false
+        }
+
+        if (permissionGranted) {
+            binding.btnGrantShizuku.visibility = View.GONE
+            onPermissionGranted()
+            return
+        }
+
         when {
+            // Only report "not installed" when we ALSO can't detect a live binder —
+            !isShizukuInstalled() && !binderAlive -> {
+                updateStatusUi(false, "Shizuku is not installed")
+                binding.btnGrantShizuku.apply {
+                    text = "Install"
+                    visibility = View.VISIBLE
+                }
+            }
             Shizuku.isPreV11() -> {
                 updateStatusUi(false, "Shizuku v11+ is required")
                 binding.btnGrantShizuku.visibility = View.GONE
             }
-            !Shizuku.pingBinder() -> {
+            !binderAlive -> {
                 updateStatusUi(false, "Not running — start it from the Shizuku app")
-                binding.btnGrantShizuku.visibility = View.GONE
+                binding.btnGrantShizuku.apply {
+                    text = "Open"
+                    visibility = View.VISIBLE
+                }
             }
-            Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED -> {
+            else -> {
+                // binderAlive is true here and permissionGranted is false
                 updateStatusUi(false, "Permission not granted")
                 binding.btnGrantShizuku.apply {
                     text = "Grant"
@@ -202,10 +263,6 @@ class PermissionActivity : AppCompatActivity() {
                         updateStatusUi(false, "Error requesting permission.")
                     }
                 }
-            }
-            else -> {
-                binding.btnGrantShizuku.visibility = View.GONE
-                onPermissionGranted()
             }
         }
     }

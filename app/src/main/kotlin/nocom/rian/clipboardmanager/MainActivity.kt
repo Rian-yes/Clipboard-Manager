@@ -740,6 +740,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkAndShowShizukuStatus() {
+        val prefs = getSharedPreferences("clipboard_settings", MODE_PRIVATE)
+        val monitoringEnabled = prefs.getBoolean("monitoring_enabled", true)
+        
+        if (!monitoringEnabled) {
+            shizukuSnackbar?.dismiss()
+            shizukuSnackbar = null
+            return
+        }
+
         val isConnected = try {
             Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
         } catch (e: Exception) {
@@ -747,14 +756,16 @@ class MainActivity : AppCompatActivity() {
         }
     
         if (!isConnected) {
-            shizukuSnackbar = Snackbar.make(
-                binding.root,
-                "Shizuku is not connected — clipboard monitoring is inactive",
-                Snackbar.LENGTH_INDEFINITE
-            ).setAction("Fix") {
-                startActivity(Intent(this, PermissionActivity::class.java))
+            if (shizukuSnackbar == null) {
+                shizukuSnackbar = Snackbar.make(
+                    binding.root,
+                    "Shizuku is not connected — clipboard monitoring is inactive",
+                    Snackbar.LENGTH_INDEFINITE
+                ).setAction("Fix") {
+                    startActivity(Intent(this, PermissionActivity::class.java))
+                }
+                shizukuSnackbar?.show()
             }
-            shizukuSnackbar?.show()
         } else {
             shizukuSnackbar?.dismiss()
             shizukuSnackbar = null
