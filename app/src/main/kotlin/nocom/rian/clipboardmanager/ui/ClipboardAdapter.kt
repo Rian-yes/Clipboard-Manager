@@ -380,8 +380,8 @@ class ClipboardAdapter(
                 }
         
                 favoriteIcon.setImageResource(
-                    if (effectiveItem.isFavorite) android.R.drawable.btn_star_big_on
-                    else android.R.drawable.btn_star_big_off
+                    if (effectiveItem.isFavorite) R.drawable.ic_star_filled
+                    else R.drawable.ic_star_outline
                 )
                 favoriteIcon.setColorFilter(
                     if (effectiveItem.isFavorite) colorPinActive else colorOnSurfaceVar
@@ -550,8 +550,8 @@ class ClipboardAdapter(
             }
 
             binding.favoriteIcon.setImageResource(
-                if (effectiveItem.isFavorite) android.R.drawable.btn_star_big_on
-                else android.R.drawable.btn_star_big_off
+                if (effectiveItem.isFavorite) R.drawable.ic_star_filled
+                else R.drawable.ic_star_outline
             )
             binding.favoriteIcon.setColorFilter(
                 if (effectiveItem.isFavorite) colorPinActive else colorOnSurfaceVar

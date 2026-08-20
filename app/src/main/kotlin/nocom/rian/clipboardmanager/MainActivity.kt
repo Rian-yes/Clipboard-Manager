@@ -336,7 +336,7 @@ class MainActivity : AppCompatActivity() {
     
     private fun setupSwipeToDelete() {
         val deleteIcon = androidx.core.content.ContextCompat.getDrawable(
-            this, android.R.drawable.ic_menu_delete
+            this, R.drawable.ic_delete
         )!!.mutate()
         androidx.core.graphics.drawable.DrawableCompat.setTint(
             deleteIcon,

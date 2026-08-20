@@ -62,7 +62,7 @@
                         android:id="@+id/statusIcon"
                         android:layout_width="28dp"
                         android:layout_height="28dp"
-                        android:src="@android:drawable/ic_dialog_alert"
+                        android:src="@drawable/ic_warning"
                         app:tint="@color/md_theme_onSurfaceVariant" />
 
                     <LinearLayout
@@ -139,7 +139,7 @@
                             android:id="@+id/notifStatusIcon"
                             android:layout_width="28dp"
                             android:layout_height="28dp"
-                            android:src="@android:drawable/ic_dialog_alert"
+                            android:src="@drawable/ic_warning"
                             app:tint="@color/md_theme_onSurfaceVariant" />
 
                         <LinearLayout
@@ -195,7 +195,7 @@
                             android:id="@+id/batteryStatusIcon"
                             android:layout_width="28dp"
                             android:layout_height="28dp"
-                            android:src="@android:drawable/ic_dialog_alert"
+                            android:src="@drawable/ic_warning"
                             app:tint="@color/md_theme_onSurfaceVariant" />
 
                         <LinearLayout
@@ -250,7 +250,7 @@
                             android:id="@+id/overlayStatusIcon"
                             android:layout_width="28dp"
                             android:layout_height="28dp"
-                            android:src="@android:drawable/ic_dialog_alert"
+                            android:src="@drawable/ic_warning"
                             app:tint="@color/md_theme_onSurfaceVariant" />
 
                         <LinearLayout
@@ -314,7 +314,7 @@
                         android:layout_width="18dp"
                         android:layout_height="18dp"
                         android:layout_marginTop="1dp"
-                        android:src="@android:drawable/ic_menu_info_details"
+                        android:src="@drawable/ic_info"
                         app:tint="@color/md_theme_onSurfaceVariant" />
 
                     <TextView

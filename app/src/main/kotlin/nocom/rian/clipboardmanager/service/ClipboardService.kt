@@ -804,7 +804,7 @@ class ClipboardService : Service() {
         .setPriority(NotificationCompat.PRIORITY_LOW)
         .setOngoing(true)
         .setShowWhen(false)
-        .addAction(android.R.drawable.ic_delete, "Turn Off", stopPendingIntent)
+        .addAction(R.drawable.ic_delete, "Turn Off", stopPendingIntent)
         .build()
 }
     

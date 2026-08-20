@@ -29,7 +29,7 @@ class PermissionActivity : AppCompatActivity() {
     private val binderDeadListener = Shizuku.OnBinderDeadListener {
         runOnUiThread {
             binding.statusText.text = "Shizuku service disconnected."
-            binding.statusIcon.setImageResource(android.R.drawable.stat_notify_error)
+            binding.statusIcon.setImageResource(R.drawable.ic_warning)
             binding.statusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
                 getColor(R.color.color_status_error)
             )
@@ -254,12 +254,12 @@ class PermissionActivity : AppCompatActivity() {
     private fun updateStatusUi(isConnected: Boolean, message: String) {
         binding.statusText.text = message
         if (isConnected) {
-            binding.statusIcon.setImageResource(android.R.drawable.checkbox_on_background)
+            binding.statusIcon.setImageResource(R.drawable.ic_check_circle)
             binding.statusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
                 getColor(R.color.color_status_success)
             )
         } else {
-            binding.statusIcon.setImageResource(android.R.drawable.ic_dialog_alert)
+            binding.statusIcon.setImageResource(R.drawable.ic_warning)
             binding.statusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
                 getColor(R.color.color_status_error)
             )
@@ -268,7 +268,7 @@ class PermissionActivity : AppCompatActivity() {
     
     private fun updateNotificationStatusUi(isGranted: Boolean) {
         if (isGranted) {
-            binding.notifStatusIcon.setImageResource(android.R.drawable.checkbox_on_background)
+            binding.notifStatusIcon.setImageResource(R.drawable.ic_check_circle)
             binding.notifStatusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
                 getColor(R.color.color_status_success)
             )
@@ -276,7 +276,7 @@ class PermissionActivity : AppCompatActivity() {
             binding.btnGrantNotification.isEnabled = false
             binding.btnGrantNotification.text = "Granted"
         } else {
-            binding.notifStatusIcon.setImageResource(android.R.drawable.ic_dialog_alert)
+            binding.notifStatusIcon.setImageResource(R.drawable.ic_warning)
             binding.notifStatusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
                 getColor(R.color.color_status_error)
             )
@@ -288,7 +288,7 @@ class PermissionActivity : AppCompatActivity() {
     
     private fun updateBatteryStatusUi(isExempt: Boolean) {
         if (isExempt) {
-            binding.batteryStatusIcon.setImageResource(android.R.drawable.checkbox_on_background)
+            binding.batteryStatusIcon.setImageResource(R.drawable.ic_check_circle)
             binding.batteryStatusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
                 getColor(R.color.color_status_success)
             )
@@ -296,7 +296,7 @@ class PermissionActivity : AppCompatActivity() {
             binding.btnExemptBattery.isEnabled = false
             binding.btnExemptBattery.text = "Exempt"
         } else {
-            binding.batteryStatusIcon.setImageResource(android.R.drawable.ic_dialog_alert)
+            binding.batteryStatusIcon.setImageResource(R.drawable.ic_warning)
             binding.batteryStatusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
                 getColor(R.color.color_status_warning)
             )
@@ -317,7 +317,7 @@ class PermissionActivity : AppCompatActivity() {
     
     private fun updateOverlayStatusUi(isGranted: Boolean) {
         if (isGranted) {
-            binding.overlayStatusIcon.setImageResource(android.R.drawable.checkbox_on_background)
+            binding.overlayStatusIcon.setImageResource(R.drawable.ic_check_circle)
             binding.overlayStatusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
                 getColor(R.color.color_status_success)
             )
@@ -325,7 +325,7 @@ class PermissionActivity : AppCompatActivity() {
             binding.btnGrantOverlay.isEnabled = false
             binding.btnGrantOverlay.text = "Granted"
         } else {
-            binding.overlayStatusIcon.setImageResource(android.R.drawable.ic_dialog_alert)
+            binding.overlayStatusIcon.setImageResource(R.drawable.ic_warning)
             binding.overlayStatusIcon.imageTintList = android.content.res.ColorStateList.valueOf(
                 getColor(R.color.color_status_error)
             )

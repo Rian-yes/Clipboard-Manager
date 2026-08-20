@@ -51,7 +51,7 @@ class OverlayWindowManager(
 
         floatingButton = ImageView(context).apply {
             setImageResource(R.drawable.ic_clipboard)
-            setBackgroundResource(android.R.drawable.toast_frame)
+            setBackgroundResource(R.drawable.bg_toast_frame)
             setPadding(28, 28, 28, 28)
             alpha = 0.85f
             elevation = 10f

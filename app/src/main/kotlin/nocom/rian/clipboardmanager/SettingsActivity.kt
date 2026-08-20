@@ -523,7 +523,7 @@ class SettingsActivity : AppCompatActivity() {
                 isSingleLine = true
                 setPadding((16 * dp).toInt(), (10 * dp).toInt(), (16 * dp).toInt(), (10 * dp).toInt())
                 setCompoundDrawablesRelativeWithIntrinsicBounds(
-                    android.R.drawable.ic_menu_search, 0, 0, 0)
+                    R.drawable.ic_search, 0, 0, 0)
                 compoundDrawablePadding = (8 * dp).toInt()
             }
             root.addView(searchEdit, LinearLayout.LayoutParams(
