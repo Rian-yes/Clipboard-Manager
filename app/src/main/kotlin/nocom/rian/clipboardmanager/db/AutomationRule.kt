@@ -2,10 +2,11 @@ package nocom.rian.clipboardmanager.db
 
 import android.content.SharedPreferences
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.google.gson.annotations.SerializedName
 
-class AutomationRuleListTypeToken : TypeToken<List<AutomationRule>>()
+data class AutomationRuleList(
+    @SerializedName("rules") val rules: List<AutomationRule> = emptyList()
+)
 
 const val PREFS_KEY_AUTOMATION_RULES = "automation_rules"
 
@@ -43,9 +44,14 @@ data class AutomationRule(
 fun loadRules(prefs: SharedPreferences): List<AutomationRule> {
     val json = prefs.getString(PREFS_KEY_AUTOMATION_RULES, null) ?: return emptyList()
     return try {
-        // 2. Use the concrete subclass instead of an anonymous object definition
-        val type = AutomationRuleListTypeToken().type
-        Gson().fromJson<List<AutomationRule>>(json, type) ?: emptyList()
+        val trimmed = json.trim()
+        if (trimmed.startsWith("[")) {
+            val rulesArray = Gson().fromJson(trimmed, Array<AutomationRule>::class.java)
+            rulesArray?.toList() ?: emptyList()
+        } else {
+            val wrapper = Gson().fromJson(trimmed, AutomationRuleList::class.java)
+            wrapper?.rules ?: emptyList()
+        }
     } catch (e: Exception) {
         android.util.Log.e("AutomationRule", "Failed to deserialize rules: ${e.message}", e)
         emptyList()
@@ -53,7 +59,8 @@ fun loadRules(prefs: SharedPreferences): List<AutomationRule> {
 }
 fun saveRules(prefs: SharedPreferences, rules: List<AutomationRule>) {
     try {
-        val json = Gson().toJson(rules)
+        val wrapper = AutomationRuleList(rules)
+        val json = Gson().toJson(wrapper)
         val success = prefs.edit()
             .putString(PREFS_KEY_AUTOMATION_RULES, json)
             .commit() // commit() instead of apply() — synchronous, verifiable

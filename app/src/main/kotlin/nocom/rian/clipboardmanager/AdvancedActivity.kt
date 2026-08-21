@@ -39,8 +39,6 @@ class AdvancedActivity : AppCompatActivity() {
     private var sqlView: View? = null
     private var rulesView: View? = null
     private var intentView: View? = null
-    private var rulesAdapter: RulesAdapter? = null
-
     companion object {
         const val KEY_INTENT_SENDER_ENABLED = "intent_sender_enabled"
         const val KEY_INTENT_SENDER_ACTION = "intent_sender_action"
@@ -495,9 +493,10 @@ class AdvancedActivity : AppCompatActivity() {
         val rules = loadRules(prefs).toMutableList()
         tvNoRules.visibility = if (rules.isEmpty()) View.VISIBLE else View.GONE
 
-        if (rulesAdapter == null) {
-            rulesAdapter = RulesAdapter(rules)
-            rulesContainer.adapter = rulesAdapter
+        val adapter = rulesContainer.adapter as? RulesAdapter
+        if (adapter == null) {
+            val newAdapter = RulesAdapter(rules)
+            rulesContainer.adapter = newAdapter
 
             // --- Auto-scroll Engine ---
             val scrollHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -523,12 +522,11 @@ class AdvancedActivity : AppCompatActivity() {
                     val fromPos = viewHolder.bindingAdapterPosition
                     val toPos = target.bindingAdapterPosition
                     
-                    // Swap the data array in real time during the drag
-                    java.util.Collections.swap(rulesAdapter!!.rules, fromPos, toPos)
-                    rulesAdapter!!.notifyItemMoved(fromPos, toPos)
+                    val currentAdapter = recyclerView.adapter as? RulesAdapter ?: return false
+                    java.util.Collections.swap(currentAdapter.rules, fromPos, toPos)
+                    currentAdapter.notifyItemMoved(fromPos, toPos)
                     return true
                 }
-
 
                 override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}
 
@@ -540,7 +538,10 @@ class AdvancedActivity : AppCompatActivity() {
                     scrollHandler.removeCallbacks(scrollRunnable)
                     
                     // Save the new execution order to disk
-                    saveRules(prefs, rulesAdapter!!.rules)
+                    val currentAdapter = recyclerView.adapter as? RulesAdapter
+                    if (currentAdapter != null) {
+                        saveRules(prefs, currentAdapter.rules)
+                    }
                 }
 
                 // Inject our custom scrolling logic while the item is being dragged
@@ -598,10 +599,11 @@ class AdvancedActivity : AppCompatActivity() {
             touchHelper.attachToRecyclerView(rulesContainer)
             
         } else {
-            rulesAdapter!!.rules = rules
-            rulesAdapter!!.notifyDataSetChanged()
+            adapter.rules = rules
+            adapter.notifyDataSetChanged()
         }
     }
+
 
 
     // Wrap the programmatic cards into a RecyclerView Adapter

@@ -61,8 +61,12 @@ object BackupManager {
             val totalClips = kotlinx.coroutines.runBlocking { dao.getTotalClipCount() }
             val rulesCount = if (!rulesJson.isNullOrBlank()) {
                 try {
-                    val type = AutomationRuleListTypeToken().type
-                    val list: List<AutomationRule> = gson.fromJson(rulesJson, type)
+                    val trimmed = rulesJson.trim()
+                    val list = if (trimmed.startsWith("[")) {
+                        gson.fromJson(trimmed, Array<AutomationRule>::class.java)?.toList() ?: emptyList()
+                    } else {
+                        gson.fromJson(trimmed, AutomationRuleList::class.java)?.rules ?: emptyList()
+                    }
                     list.size
                 } catch (e: Exception) {
                     1

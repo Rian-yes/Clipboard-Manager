@@ -756,6 +756,7 @@ class SettingsActivity : AppCompatActivity() {
                         "Exported $count clip${if (count == 1) "" else "s"} to ZIP",
                         Snackbar.LENGTH_LONG
                     ).show()
+                    refreshDatabaseSizeInfo()
                 },
                 onFailure = { e ->
                     Snackbar.make(
@@ -834,8 +835,12 @@ class SettingsActivity : AppCompatActivity() {
                             if (!brResult.rulesJson.isNullOrBlank()) {
                                 val existingRules = nocom.rian.clipboardmanager.db.loadRules(prefs).toMutableList()
                                 val importedRules: List<nocom.rian.clipboardmanager.db.AutomationRule> = try {
-                                    val type = nocom.rian.clipboardmanager.db.AutomationRuleListTypeToken().type
-                                    com.google.gson.Gson().fromJson(brResult.rulesJson, type) ?: emptyList()
+                                    val trimmed = brResult.rulesJson.trim()
+                                    if (trimmed.startsWith("[")) {
+                                        com.google.gson.Gson().fromJson(trimmed, Array<nocom.rian.clipboardmanager.db.AutomationRule>::class.java)?.toList() ?: emptyList()
+                                    } else {
+                                        com.google.gson.Gson().fromJson(trimmed, nocom.rian.clipboardmanager.db.AutomationRuleList::class.java)?.rules ?: emptyList()
+                                    }
                                 } catch (e: Exception) {
                                     android.util.Log.e("SettingsActivity", "Failed to parse imported rules JSON", e)
                                     emptyList()
@@ -872,6 +877,60 @@ class SettingsActivity : AppCompatActivity() {
                                     android.util.Log.e("SettingsActivity", "Failed to parse/apply imported intent sender settings", e)
                                 }
                             }
+
+                            // Enforce policies after import
+                            val repository = ClipboardRepository(db.clipboardDao())
+                            val cap = prefs.getInt(KEY_CLIP_CAP, 0)
+                            if (cap > 0) {
+                                repository.enforceClipCapWithImages(
+                                    maxClips = cap,
+                                    onEachDeleted = { item ->
+                                        if (item.mimeType?.startsWith("image/") == true && item.filePath != null) {
+                                            val path = item.filePath
+                                            val count = kotlinx.coroutines.runBlocking { repository.countByFilePath(path) }
+                                            if (count <= 1) {
+                                                val file = File(path)
+                                                if (file.exists()) {
+                                                    file.delete()
+                                                }
+                                            }
+                                        }
+                                    },
+                                    database = db
+                                )
+                            }
+                            val days = prefs.getInt(KEY_AUTO_DELETE_DAYS, 0)
+                            if (days > 0) {
+                                val cutoff = System.currentTimeMillis() - (days * 24L * 60 * 60 * 1000)
+                                repository.deleteOlderThanWithImages(
+                                    cutoffMs = cutoff,
+                                    onEachDeleted = { item ->
+                                        if (item.mimeType?.startsWith("image/") == true && item.filePath != null) {
+                                            val path = item.filePath
+                                            val count = kotlinx.coroutines.runBlocking { repository.countByFilePath(path) }
+                                            if (count <= 1) {
+                                                val file = File(path)
+                                                if (file.exists()) {
+                                                    file.delete()
+                                                }
+                                            }
+                                        }
+                                    },
+                                    database = db
+                                )
+                            }
+
+                            // Checkpoint SQLite WAL to truncate the journal file size on disk
+                            try {
+                                db.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE)").use { cursor ->
+                                    if (cursor.moveToFirst()) {
+                                        android.util.Log.d("SettingsActivity", "WAL checkpoint completed successfully")
+                                    }
+                                }
+                            } catch (checkpointEx: Exception) {
+                                android.util.Log.e("SettingsActivity", "Failed to run WAL checkpoint", checkpointEx)
+                            }
+
                             Result.success(importCounts)
                         } catch (e: Exception) {
                             Result.failure(e)
@@ -897,6 +956,7 @@ class SettingsActivity : AppCompatActivity() {
                         message,
                         Snackbar.LENGTH_LONG
                     ).show()
+                    refreshDatabaseSizeInfo()
                 },
                 onFailure = { e ->
                     Snackbar.make(
