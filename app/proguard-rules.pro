@@ -12,46 +12,46 @@
 #   public *;
 #}
 
-# ── Existing keeps (already in your file) ────────────────────────────────────
--keep class android.content.pm.IPackageManager { *; }
--keep class android.content.pm.IPackageManager$** { *; }
--keep class android.app.IActivityManager { *; }
--keep class android.app.IActivityManager$** { *; }
+# ── AIDL interfaces mocking system APIs & Shizuku IPC ───────────────────────
 -keep class android.content.IClipboard { *; }
 -keep class android.content.IClipboard$** { *; }
-
-# ── ADD: Clipboard change listener (was being stripped, breaking monitoring) ──
 -keep class android.content.IOnPrimaryClipChangedListener { *; }
 -keep class android.content.IOnPrimaryClipChangedListener$** { *; }
 -keep class android.content.IOnPrimaryClipChangedListener$Stub { *; }
 -keep class android.content.IOnPrimaryClipChangedListener$Stub$Proxy { *; }
-
-# ── ADD: IProcessObserver AIDL stub ──────────────────────────────────────────
+-keep class android.content.pm.IPackageManager { *; }
+-keep class android.content.pm.IPackageManager$** { *; }
+-keep class android.app.IActivityManager { *; }
+-keep class android.app.IActivityManager$** { *; }
 -keep class android.app.IProcessObserver { *; }
 -keep class android.app.IProcessObserver$** { *; }
 
-# ── ADD: Shizuku internals used via reflection ────────────────────────────────
+# ── Shizuku internals used directly or via reflection ────────────────────────
 -keep class rikka.shizuku.** { *; }
 -keep class rikka.shizuku.ShizukuBinderWrapper { *; }
 
-# ── ADD: Gson — prevent stripping of data classes used in serialization ───────
--keepattributes Signature
--keepattributes *Annotation*
--keep class com.google.gson.** { *; }
--keep class nocom.rian.clipboardmanager.db.BackupFile { *; }
--keep class nocom.rian.clipboardmanager.db.ClipboardItem { *; }
-
-# ── ADD: AutomationRule — required for Gson serialization ────────────────────
--keep class nocom.rian.clipboardmanager.db.AutomationRule { *; }
--keep class nocom.rian.clipboardmanager.db.AutomationRule$** { *; }
-
-# Prevent stripping or modification of your explicit TypeToken declaration
--keep class nocom.rian.clipboardmanager.db.AutomationRuleListTypeToken { *; }
-
-# ── ADD: Gson TypeToken anonymous classes — prevents ProGuard from stripping
-#         generic type info needed for List<AutomationRule> deserialization ───
--keep class * extends com.google.gson.TypeToken
+# ── Gson configuration ───────────────────────────────────────────────────────
+-keepattributes Signature, *Annotation*, EnclosingMethod, InnerClasses
+-keep class com.google.gson.annotations.SerializedName { *; }
+-keep class com.google.gson.annotations.Expose { *; }
+-keep class com.google.gson.annotations.Since { *; }
+-keep class com.google.gson.annotations.Until { *; }
+-keep class com.google.gson.annotations.JsonAdapter { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
 -keep public class * implements java.lang.reflect.Type
+
+# Keep backup and serialization model classes intact
+-keep class nocom.rian.clipboardmanager.db.ClipboardItem { *; }
+-keep class nocom.rian.clipboardmanager.db.BackupManifest { *; }
+-keep class nocom.rian.clipboardmanager.db.AutomationRule { *; }
+-keep class nocom.rian.clipboardmanager.db.BackupResult { *; }
+-keep class nocom.rian.clipboardmanager.db.AutomationRuleList { *; }
+-keep class nocom.rian.clipboardmanager.db.BackupManager { *; }
+-keep class nocom.rian.clipboardmanager.db.ClipboardDao { *; }
+-keep class nocom.rian.clipboardmanager.AdvancedActivity$Companion { *; }
+-keep class nocom.rian.clipboardmanager.AdvancedActivity {
+    public static final nocom.rian.clipboardmanager.AdvancedActivity$Companion Companion;
+}
 
 # ── ADD: Room entities — prevent column name mangling ────────────────────────
 -keep @androidx.room.Entity class * { *; }
