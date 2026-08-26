@@ -954,7 +954,7 @@ class ClipboardService : Service() {
     
             val dir = java.io.File(getExternalFilesDir(null), "clipboard_images").also { it.mkdirs() }
             val file   = java.io.File(dir, "img_$timestamp.$ext")
-            val digest = java.security.MessageDigest.getInstance("MD5")
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
     
             // Strategy 1: direct ContentResolver — works for MediaStore and other accessible URIs.
             val stream: java.io.InputStream? = try {
@@ -1020,7 +1020,7 @@ class ClipboardService : Service() {
             // Changed directory name to 'clipboard_media' since we support more than images now
             val dir = java.io.File(getExternalFilesDir(null), "clipboard_media").also { it.mkdirs() }
             val file   = java.io.File(dir, "file_$timestamp.$ext")
-            val digest = java.security.MessageDigest.getInstance("MD5")
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
     
             // Strategy 1: direct ContentResolver — works for MediaStore and other accessible URIs.
             val stream: java.io.InputStream? = try {

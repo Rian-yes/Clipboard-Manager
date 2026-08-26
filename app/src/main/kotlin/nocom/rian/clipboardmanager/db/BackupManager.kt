@@ -34,8 +34,8 @@ object BackupManager {
 
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
-    private fun getFileMD5(file: File): String {
-        val digest = MessageDigest.getInstance("MD5")
+    private fun getFileHash(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input ->
             val buffer = ByteArray(8192)
             var bytesRead = input.read(buffer)
@@ -76,11 +76,9 @@ object BackupManager {
             var clipsSeen = 0
             var clipsWritten = 0
             var imagesWritten = 0
-
-            val writtenImages = mutableSetOf<String>()
-            val pathToMd5 = mutableMapOf<String, String>()
-
             ZipOutputStream(outputStream.buffered()).use { zip ->
+                val pathToHash = mutableMapOf<String, String>()
+                val writtenImages = mutableSetOf<String>()
                 val uniqueImagesToExport = mutableSetOf<String>()
                 
                 var offset = 0
@@ -92,8 +90,8 @@ object BackupManager {
                         item.filePath?.let { path ->
                             val file = File(path)
                             if (file.exists()) {
-                                val md5 = pathToMd5.getOrPut(file.absolutePath) { getFileMD5(file) }
-                                uniqueImagesToExport.add(md5)
+                                val hash = pathToHash.getOrPut(file.absolutePath) { getFileHash(file) }
+                                uniqueImagesToExport.add(hash)
                             }
                         }
                     }
@@ -128,8 +126,8 @@ object BackupManager {
                         val portableItem = if (item.filePath != null) {
                             val originalFile = File(item.filePath)
                             if (originalFile.exists()) {
-                                val md5 = pathToMd5.getOrPut(originalFile.absolutePath) { getFileMD5(originalFile) }
-                                item.copy(filePath = "img_$md5.bin")
+                                val hash = pathToHash.getOrPut(originalFile.absolutePath) { getFileHash(originalFile) }
+                                item.copy(filePath = "img_$hash.bin")
                             } else {
                                 item.copy(filePath = null)
                             }
@@ -166,8 +164,8 @@ object BackupManager {
                         val path = item.filePath ?: return@forEach
                         val file = File(path)
                         if (file.exists()) {
-                            val md5 = pathToMd5.getOrPut(file.absolutePath) { getFileMD5(file) }
-                            val zipName = "images/img_$md5.bin"
+                            val hash = pathToHash.getOrPut(file.absolutePath) { getFileHash(file) }
+                            val zipName = "images/img_$hash.bin"
                             if (!writtenImages.contains(zipName)) {
                                 zip.putNextEntry(ZipEntry(zipName))
                                 file.inputStream().use { it.copyTo(zip) }
@@ -317,14 +315,14 @@ object BackupManager {
                     val tempFile = zipPathToTempFile[relativeZipPath]
                     if (tempFile != null && tempFile.exists()) {
                         val permFile = zipPathToPermanentFile.getOrPut(relativeZipPath) {
-                            val md5 = getFileMD5(tempFile)
-                            val target = File(imageDir, "img_$md5.bin")
+                            val hash = getFileHash(tempFile)
+                            val target = File(imageDir, "img_$hash.bin")
                             if (!target.exists()) {
                                 tempFile.copyTo(target, overwrite = true)
                             }
                             target
                         }
-                        item.copy(id = 0, filePath = permFile.absolutePath, imageHash = getFileMD5(permFile))
+                        item.copy(id = 0, filePath = permFile.absolutePath, imageHash = getFileHash(permFile))
                     } else {
                         throw IllegalStateException("Image reference $relativeZipPath not found in ZIP archive")
                     }
