@@ -12,6 +12,7 @@ import nocom.rian.clipboardmanager.SettingsActivity
 import nocom.rian.clipboardmanager.db.AppDatabase
 import nocom.rian.clipboardmanager.db.ClipboardItem
 import nocom.rian.clipboardmanager.db.ClipboardRepository
+import nocom.rian.clipboardmanager.db.matchPatternSafely
 import kotlinx.coroutines.*
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuBinderWrapper
@@ -927,14 +928,7 @@ class ClipboardService : Service() {
             
             // ── Condition: content regex (text clips only) ─────────────────────
             if (rule.conditionContentPattern.isNotBlank()) {
-                if (text == null) continue
-                val matched = try {
-                    Regex(rule.conditionContentPattern).containsMatchIn(text)
-                } catch (e: Exception) {
-                    android.util.Log.w("ClipboardService", "Bad regex in rule '${rule.name}': ${e.message}")
-                    false
-                }
-                if (!matched) continue
+                if (text == null || !rule.matchPatternSafely(text)) continue
             }
 
             // ── All conditions passed → apply actions ──────────────────────────

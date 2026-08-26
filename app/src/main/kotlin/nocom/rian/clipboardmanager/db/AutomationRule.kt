@@ -69,3 +69,19 @@ fun saveRules(prefs: SharedPreferences, rules: List<AutomationRule>) {
         android.util.Log.e("AutomationRule", "Failed to serialize rules: ${e.message}", e)
     }
 }
+
+private val regexCache = java.util.concurrent.ConcurrentHashMap<String, com.google.re2j.Pattern?>()
+
+fun AutomationRule.matchPatternSafely(text: String?): Boolean {
+    if (text == null || conditionContentPattern.isBlank()) return true
+    val regex = regexCache.computeIfAbsent(conditionContentPattern) { pattern ->
+        try {
+            com.google.re2j.Pattern.compile(pattern, com.google.re2j.Pattern.CASE_INSENSITIVE)
+        } catch (e: Exception) {
+            null
+        }
+    } ?: return false
+
+    // re2j guarantees O(N) linear time regex matching, preventing ReDoS natively.
+    return regex.matcher(text).find()
+}

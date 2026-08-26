@@ -131,6 +131,7 @@ dependencies {
     implementation("androidx.startup:startup-runtime:1.1.1")
     implementation("androidx.interpolator:interpolator:1.0.0")
     implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.google.re2j:re2j:1.8")
     
     // Updated to 1.11.0 for better Material 3 CardView & TextField support
     implementation("com.google.android.material:material:1.11.0")
