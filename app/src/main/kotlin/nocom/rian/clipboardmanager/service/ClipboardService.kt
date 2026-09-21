@@ -1065,14 +1065,12 @@ class ClipboardService : Service() {
             // 1. Reflect into Shizuku to access the "private" newProcess
             val shizukuClass = rikka.shizuku.Shizuku::class.java
             val newProcessMethod = shizukuClass.getDeclaredMethod(
-                "newProcess", 
-                Array<String>::class.java, 
-                Array<String>::class.java, 
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
                 String::class.java
-            )
-            newProcessMethod.isAccessible = true
-    
-            // 2. Invoke the process (Acting as Shell)
+            ).apply { isAccessible = true }
+
             val remoteProcess = newProcessMethod.invoke(null, cmd, null, null) as java.lang.Process
             val stdout = remoteProcess.inputStream
     
@@ -1085,13 +1083,19 @@ class ClipboardService : Service() {
                 return null
             }
             bis.reset()
-            
-            // Note: The process stays alive as long as you are reading the stream.
-            // It will be cleaned up when you close the stream in saveImageFromUri.
-            return bis
-    
+
+            // Wrap stream to terminate the remote shell process upon close
+            object : java.io.FilterInputStream(bis) {
+                override fun close() {
+                    try {
+                        super.close()
+                    } finally {
+                        remoteProcess.destroy()
+                    }
+                }
+            }
         } catch (e: Exception) {
-            android.util.Log.e("ClipboardService", "Shizuku reflection process failed", e)
+            android.util.Log.e("ClipboardService", "Shizuku process stream creation failed", e)
             null
         }
     }

@@ -13,6 +13,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.room.withTransaction
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -792,44 +793,41 @@ class SettingsActivity : AppCompatActivity() {
                     val brResult = backupResult.getOrNull()
                     if (brResult != null) {
                         try {
-                            var importCounts = Pair(0, 0)
-                            db.runInTransaction {
+                            val importCounts = db.withTransaction {
                                 val dao = db.clipboardDao()
-                                kotlinx.coroutines.runBlocking {
-                                    val existing = dao.getAllClipsOnce()
+                                val existing = dao.getAllClipsOnce()
 
-                                    val existingTexts = existing.mapNotNull { it.clip }.toHashSet()
-                                    val existingImageKeys = existing
-                                        .filter { it.imageHash != null }
-                                        .mapTo(HashSet()) { "${it.imageHash}|${it.packageName}" }
+                                val existingTexts = existing.mapNotNull { it.clip }.toHashSet()
+                                val existingImageKeys = existing
+                                    .filter { it.imageHash != null }
+                                    .mapTo(HashSet()) { "${it.imageHash}|${it.packageName}" }
 
-                                    var addedCount = 0
-                                    var skippedCount = 0
+                                var addedCount = 0
+                                var skippedCount = 0
 
-                                    val newClips = brResult.clips.filter { item ->
-                                        val isDup = when {
-                                            item.clip != null -> item.clip in existingTexts
-                                            item.imageHash != null -> "${item.imageHash}|${item.packageName}" in existingImageKeys
-                                            else -> false
-                                        }
-
-                                        if (isDup) {
-                                            skippedCount++
-                                            false
-                                        } else {
-                                            item.clip?.let { existingTexts.add(it) }
-                                            item.imageHash?.let { existingImageKeys.add("$it|${item.packageName}") }
-                                            addedCount++
-                                            true
-                                        }
+                                val newClips = brResult.clips.filter { item ->
+                                    val isDup = when {
+                                        item.clip != null -> item.clip in existingTexts
+                                        item.imageHash != null -> "${item.imageHash}|${item.packageName}" in existingImageKeys
+                                        else -> false
                                     }
 
-                                    newClips.sortedBy { it.timestamp }.chunked(500).forEach { chunk ->
-                                        dao.insertAll(chunk)
+                                    if (isDup) {
+                                        skippedCount++
+                                        false
+                                    } else {
+                                        item.clip?.let { existingTexts.add(it) }
+                                        item.imageHash?.let { existingImageKeys.add("$it|${item.packageName}") }
+                                        addedCount++
+                                        true
                                     }
-
-                                    importCounts = Pair(addedCount, skippedCount)
                                 }
+
+                                newClips.sortedBy { it.timestamp }.chunked(500).forEach { chunk ->
+                                    dao.insertAll(chunk)
+                                }
+
+                                Pair(addedCount, skippedCount)
                             }
     
                             if (!brResult.rulesJson.isNullOrBlank()) {

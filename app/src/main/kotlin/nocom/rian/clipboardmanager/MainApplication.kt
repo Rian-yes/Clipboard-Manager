@@ -37,7 +37,12 @@ class MainApplication : Application() {
         ShizukuProvider.enableMultiProcessSupport(true)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            HiddenApiBypass.addHiddenApiExemptions("")
+            try {
+                HiddenApiBypass.addHiddenApiExemptions("")
+                android.util.Log.i("MainApplication", "HiddenApiBypass applied successfully")
+            } catch (t: Throwable) {
+                android.util.Log.e("MainApplication", "HiddenApiBypass failed; falling back to direct Shizuku IPC wrappers", t)
+            }
         }
 
         // Sticky = fires immediately if binder is already live, AND fires on
