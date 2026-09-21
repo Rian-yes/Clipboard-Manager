@@ -103,4 +103,7 @@ interface ClipboardDao {
 
     @Query("SELECT COUNT(*) FROM clipboardmanager WHERE file_path = :path")
     suspend fun countByFilePath(path: String): Int
+
+    @Query("SELECT * FROM clipboardmanager WHERE image_hash IS NOT NULL AND length(image_hash) = 32")
+    suspend fun getMD5Items(): List<ClipboardItem>
 }
